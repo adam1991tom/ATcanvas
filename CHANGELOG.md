@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.3
+- Replaced layered legacy admin JavaScript with one clean interface controller
+- Stabilized display layout and schedule selectors so saved choices stop flickering/resetting
+- Added layout settings editor for name, resolution and background colour
+- Added layout preview, duplicate and rotate controls
+- Added layer property editing for text, colours, size, opacity, position and media selection
+- Added layer duplicate and z-order controls
+- Rebuilt schedules in the UI as reusable profiles containing editable time blocks
+- Added weekday/weekend/every-day schedule choices
+- Added schedule actions for layout, screen on, screen off, dim and normal brightness
+- Added event editing instead of create/delete only
+- Improved media preview/open/delete workflow
+- Added branch-aware update status for server, screen and latest GitHub Release
+- Added Python and JavaScript syntax checks to server CI
+- Replaced the unreliable sidebar image with a guaranteed AT Canvas text mark until static branding is rebuilt cleanly
+
 ## 0.3.0
 - Added a guaranteed server-side display test screen at `/display/test`
 - Added stable per-display render URLs at `/display/<token>`

@@ -1,30 +1,116 @@
-name: Release
+name: AT Canvas Release
+
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - VERSION
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. 0.3.3'
+        required: true
+
 permissions:
-  contents: read
+  contents: write
   packages: write
+
 jobs:
-  docker:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - name: Checkout server branch
+        uses: actions/checkout@v4
+        with:
+          ref: server
+          path: server-src
+
+      - name: Checkout screen branch
+        uses: actions/checkout@v4
+        with:
+          ref: screen
+          path: screen-src
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="$(tr -d '[:space:]' < server-src/VERSION 2>/dev/null || tr -d '[:space:]' < VERSION)"
+          fi
+          V="${V#v}"
+          test -n "$V"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+
+      - name: Package display client
+        shell: bash
+        run: |
+          tar -C screen-src -czf "at-canvas-screen-v${{ steps.version.outputs.version }}.tar.gz" display-client
+
+      - name: Package server source
+        shell: bash
+        run: |
+          tar -C server-src -czf "at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz" server docker docker-compose.yml .env.example
+
+      - name: Docker login
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: meta
+
+      - name: Build and publish server image
+        uses: docker/build-push-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/at-canvas
-          tags: |
-            type=ref,event=tag
-            type=raw,value=latest
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile
+          context: server-src
+          file: server-src/docker/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/at-canvas-server:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/at-canvas-server:latest
+
+      - name: Create release notes
+        shell: bash
+        run: |
+          SERVER_SHA=$(git -C server-src rev-parse --short HEAD)
+          SCREEN_SHA=$(git -C screen-src rev-parse --short HEAD)
+          cat > release-notes.md <<EOF
+          # AT Canvas v${{ steps.version.outputs.version }}
+
+          This release contains both AT Canvas components.
+
+          - Server branch: \`server\` (${SERVER_SHA})
+          - Screen branch: \`screen\` (${SCREEN_SHA})
+          - Server Docker image: \`ghcr.io/${{ github.repository_owner }}/at-canvas-server:${{ steps.version.outputs.version }}\`
+          - Display client package: \`at-canvas-screen-v${{ steps.version.outputs.version }}.tar.gz\`
+
+          The \`main\` branch is the release/integration branch. Development happens on \`server\` and \`screen\`.
+          EOF
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "at-canvas-screen-v${{ steps.version.outputs.version }}.tar.gz" \
+              "at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz" \
+              --clobber
+          else
+            gh release create "$TAG" \
+              "at-canvas-screen-v${{ steps.version.outputs.version }}.tar.gz" \
+              "at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz" \
+              --target main \
+              --title "AT Canvas v${{ steps.version.outputs.version }}" \
+              --notes-file release-notes.md
+          fi

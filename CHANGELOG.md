@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+- Added a guaranteed server-side display test screen at `/display/test`
+- Added stable per-display render URLs at `/display/<token>`
+- Added per-display Test Screen mode and layout assignment controls
+- Display heartbeat now returns the render URL, test mode, layout and active scheduled action
+- Added real saved-layout rendering for clock, text, countdown, media and placeholder service widgets
+- Added layout property editing for name, text, colour, background, opacity, position, size and z-order
+- Rebuilt schedules as reusable schedule profiles containing multiple time blocks
+- Added schedule block evaluation including overnight time ranges
+- Preserved existing schedule rows by migrating their old time/action data into schedule blocks
+- Added a logo fallback so the admin can never show a broken-image icon
+- Focused this release on an end-to-end testable working model before Google Calendar and Google Photos integration
+
 ## 0.2.4
 - Replaced Room selection in the display pairing workflow with Schedule assignment
 - Added persistent per-display schedule assignment

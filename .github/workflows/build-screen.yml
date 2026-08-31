@@ -1,0 +1,25 @@
+name: Build Screen
+
+on:
+  push:
+    branches: [screen]
+  pull_request:
+    branches: [screen]
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax check
+        run: python3 -m py_compile display-client/agent/at_canvas_client.py
+      - name: Shell syntax checks
+        shell: bash
+        run: |
+          find display-client -type f -name '*.sh' -print0 | xargs -0 -r -n1 bash -n
+      - name: Package display client
+        run: tar -czf at-canvas-screen.tar.gz display-client
+      - uses: actions/upload-artifact@v4
+        with:
+          name: at-canvas-screen
+          path: at-canvas-screen.tar.gz

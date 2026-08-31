@@ -15,3 +15,17 @@ services:
     volumes:
       - ./data:/data
       - /etc/localtime:/etc/localtime:ro
+
+  at-canvas-https:
+    image: nginx:alpine
+    container_name: at-canvas-https
+    restart: unless-stopped
+    profiles: ["https"]
+    depends_on:
+      - at-canvas
+    ports:
+      - "${AT_CANVAS_HTTPS_PORT:-8078}:443"
+    volumes:
+      - ./docker/nginx-https.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./data/certs:/etc/nginx/certs:ro
+      - /etc/localtime:/etc/localtime:ro

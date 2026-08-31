@@ -20,7 +20,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 SERVER = os.getenv("AT_CANVAS_SERVER", "http://10.0.0.2:8077").rstrip("/")
 STATE_DIR = Path(os.getenv("AT_CANVAS_STATE_DIR", "/var/lib/at-canvas"))
 STATE_FILE = STATE_DIR / "client.json"
@@ -44,9 +44,12 @@ runtime = {
     "resolution": "unknown",
     "brightness": 100,
     "identify_until": 0,
+    "renderer_url": None,
 }
 lock = threading.Lock()
 browser_process: subprocess.Popen | None = None
+browser_url: str | None = None
+browser_managed = False
 
 
 def log(message: str) -> None:
@@ -114,15 +117,14 @@ def xcmd(*args: str) -> bool:
     try:
         subprocess.run(list(args), check=True, env=env, timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
-    except Exception:
+    except Exception as exc:
+        log(f"X command failed ({' '.join(args)}): {exc}")
         return False
 
 
 def screen_power(on: bool) -> None:
-    # Raspberry Pi KMS/legacy helper when available.
     if shutil.which("vcgencmd"):
         run_command(["vcgencmd", "display_power", "1" if on else "0"])
-    # Generic X11 fallback.
     xcmd("xset", "dpms", "force", "on" if on else "off")
 
 
@@ -133,7 +135,6 @@ def set_brightness(percent: int) -> None:
     if shutil.which("brightnessctl"):
         run_command(["brightnessctl", "set", f"{percent}%"])
         return
-    # xrandr software brightness fallback.
     try:
         env = {**os.environ, "DISPLAY": DISPLAY, "XAUTHORITY": XAUTHORITY}
         out = subprocess.check_output(["xrandr", "--current"], env=env, text=True, timeout=4)
@@ -144,8 +145,112 @@ def set_brightness(percent: int) -> None:
             check=False,
             timeout=5,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        log(f"brightness fallback failed: {exc}")
+
+
+def chromium_binary() -> str | None:
+    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def current_display_url() -> str:
+    with lock:
+        renderer = runtime.get("renderer_url")
+        mode = runtime.get("mode")
+        online = runtime.get("online")
+    if mode == "connected" and online and renderer:
+        return str(renderer)
+    return f"http://127.0.0.1:{LOCAL_PORT}/"
+
+
+def stop_existing_chromium() -> None:
+    global browser_process
+    if browser_process and browser_process.poll() is None:
+        browser_process.terminate()
+        try:
+            browser_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            browser_process.kill()
+    browser_process = None
+
+    # The original appliance build launched Chromium from Openbox rather than
+    # the client. Kill that legacy instance when the client takes ownership.
+    if shutil.which("pkill"):
+        subprocess.run(
+            ["pkill", "-u", KIOSK_USER, "-f", "chromium"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(1)
+
+
+def launch_browser(force: bool = False, url: str | None = None) -> None:
+    global browser_process, browser_url, browser_managed
+
+    target = url or current_display_url()
+    if not AUTO_LAUNCH and not force and not browser_managed:
+        return
+
+    if browser_process and browser_process.poll() is None and browser_url == target and not force:
+        return
+
+    if force or browser_url != target or not browser_process or browser_process.poll() is not None:
+        stop_existing_chromium()
+
+    chromium = chromium_binary()
+    if not chromium:
+        log("Chromium not installed; local UI remains available on port 8787")
+        return
+
+    args = [
+        chromium,
+        "--kiosk",
+        "--no-first-run",
+        "--disable-session-crashed-bubble",
+        "--disable-infobars",
+        "--disable-translate",
+        "--disable-features=TranslateUI",
+        "--overscroll-history-navigation=0",
+        "--check-for-update-interval=31536000",
+        "--disable-pinch",
+        "--autoplay-policy=no-user-gesture-required",
+        target,
+    ]
+    env = {**os.environ, "DISPLAY": DISPLAY, "XAUTHORITY": XAUTHORITY}
+    if os.geteuid() == 0 and shutil.which("runuser") and KIOSK_USER:
+        args = ["runuser", "-u", KIOSK_USER, "--"] + args
+
+    try:
+        browser_process = subprocess.Popen(args, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        browser_url = target
+        browser_managed = True
+        log(f"Chromium kiosk launched: {target}")
+    except Exception as exc:
+        log(f"Chromium launch failed: {exc}")
+
+
+def reload_renderer() -> None:
+    target = current_display_url()
+    log(f"reloading display renderer: {target}")
+    launch_browser(force=True, url=target)
+
+
+def identify_display() -> None:
+    with lock:
+        runtime["identify_until"] = time.time() + 15
+    # Show the local identify/status page briefly, then return to the renderer.
+    launch_browser(force=True, url=f"http://127.0.0.1:{LOCAL_PORT}/")
+
+    def restore() -> None:
+        time.sleep(15)
+        launch_browser(force=True, url=current_display_url())
+
+    threading.Thread(target=restore, daemon=True, name="identify-restore").start()
 
 
 def execute_remote_command(command: str | None) -> None:
@@ -153,10 +258,9 @@ def execute_remote_command(command: str | None) -> None:
         return
     log(f"remote command: {command}")
     if command == "reload":
-        launch_browser(force=True)
+        reload_renderer()
     elif command == "identify":
-        with lock:
-            runtime["identify_until"] = time.time() + 15
+        identify_display()
     elif command == "screen_off":
         screen_power(False)
     elif command == "screen_on":
@@ -167,6 +271,8 @@ def execute_remote_command(command: str | None) -> None:
         updater = Path("/usr/local/sbin/at-canvas-update")
         if updater.exists():
             subprocess.Popen([str(updater)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            log("update requested but updater is missing")
 
 
 def request_pairing_code() -> None:
@@ -178,6 +284,7 @@ def request_pairing_code() -> None:
         runtime["pair_expires"] = now + int(reply.get("expires_in", 900))
         runtime["last_error"] = None
     log(f"pairing code: {reply['code']}")
+    launch_browser(force=True, url=f"http://127.0.0.1:{LOCAL_PORT}/")
 
 
 def pairing_loop() -> dict:
@@ -222,6 +329,7 @@ def pairing_loop() -> dict:
 
 def heartbeat_loop(state: dict) -> None:
     last_command = None
+    last_renderer = None
     while True:
         resolution = detect_resolution()
         with lock:
@@ -232,17 +340,27 @@ def heartbeat_loop(state: dict) -> None:
                 "/api/display/heartbeat",
                 {"token": state["token"], "client_version": VERSION, "resolution": resolution},
             )
+            renderer = reply.get("renderer_url") or reply.get("render_url") or reply.get("display_url") or reply.get("url")
             with lock:
                 runtime["mode"] = "connected"
                 runtime["online"] = True
                 runtime["display_name"] = reply.get("display")
                 runtime["last_seen"] = int(time.time())
                 runtime["last_error"] = None
+                if renderer:
+                    runtime["renderer_url"] = renderer
+
+            if renderer and renderer != last_renderer:
+                log(f"renderer assigned: {renderer}")
+                launch_browser(force=True, url=renderer)
+                last_renderer = renderer
+
             if reply.get("brightness") is not None:
                 set_brightness(reply["brightness"])
+
             command = reply.get("command")
-            # Current server stores one desired command. Run it only once per
-            # agent session to prevent command loops until command ACK lands.
+            # Keep an in-session guard as a second safety layer. The v0.3.3
+            # server now consumes manual desired_command values after delivery.
             if command and command != last_command:
                 execute_remote_command(command)
                 last_command = command
@@ -258,6 +376,8 @@ def heartbeat_loop(state: dict) -> None:
                 with lock:
                     runtime["online"] = False
                     runtime["mode"] = "pairing"
+                    runtime["renderer_url"] = None
+                launch_browser(force=True, url=f"http://127.0.0.1:{LOCAL_PORT}/")
                 return
             with lock:
                 runtime["online"] = False
@@ -275,14 +395,17 @@ def status_html() -> str:
     identify = state["identify_until"] > time.time()
     mode = state["mode"]
     code = state.get("pair_code") or "------"
-    if mode == "pairing":
+    if identify:
+        headline = html.escape(state.get("display_name") or "AT Canvas Display")
+        content = '<div class="identify-text">IDENTIFY</div><p>This screen is being identified from AT Canvas.</p>'
+    elif mode == "pairing":
         headline = "Pair this display"
         content = f'<div class="code">{html.escape(code)}</div><p>Open AT Canvas on the server, go to <b>Displays</b>, and enter this code.</p>'
     elif mode == "connected":
         name = html.escape(state.get("display_name") or "AT Canvas Display")
         network = "Connected" if state.get("online") else "Server unavailable — using local fallback"
         headline = name
-        content = f'<div class="ok">● {network}</div><p>Client v{VERSION} · {html.escape(state.get("resolution") or "unknown")}</p><p class="small">Waiting for the assigned AT Canvas layout renderer.</p>'
+        content = f'<div class="ok">● {network}</div><p>Client v{VERSION} · {html.escape(state.get("resolution") or "unknown")}</p><p class="small">AT Canvas display renderer active.</p>'
     else:
         headline = "AT Canvas is starting"
         content = "<p>Preparing display client…</p>"
@@ -290,14 +413,23 @@ def status_html() -> str:
     identify_class = " identify" if identify else ""
     return f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>AT Canvas Display</title><style>
-html,body{{margin:0;width:100%;height:100%;overflow:hidden;background:#080b0f;color:#f4f7fb;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}}body{{display:grid;place-items:center}}.wrap{{width:min(900px,88vw);text-align:center}}.brand{{font-weight:900;letter-spacing:.04em;color:#78aaff;margin-bottom:45px;font-size:clamp(22px,3vw,38px)}}h1{{font-size:clamp(36px,6vw,76px);margin:0 0 26px}}.code{{font-size:clamp(82px,15vw,180px);font-weight:950;letter-spacing:.12em;line-height:1;margin:35px 0;color:#fff}}p{{font-size:clamp(17px,2vw,28px);line-height:1.5;color:#a9b5c5}}.ok{{font-size:clamp(22px,3vw,38px);color:#50dc8e;font-weight:800;margin:35px 0 12px}}.small{{font-size:16px}}.error{{margin-top:30px;padding:14px 18px;border:1px solid #66353b;background:#2b1519;border-radius:12px;color:#ffabb3}}.identify{{position:fixed;inset:0;border:28px solid #78aaff;box-sizing:border-box;pointer-events:none;animation:pulse .65s infinite alternate}}@keyframes pulse{{to{{border-width:55px}}}}
+html,body{{margin:0;width:100%;height:100%;overflow:hidden;background:#080b0f;color:#f4f7fb;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}}body{{display:grid;place-items:center}}.wrap{{width:min(900px,88vw);text-align:center}}.brand{{font-weight:900;letter-spacing:.04em;color:#c338ff;margin-bottom:45px;font-size:clamp(22px,3vw,38px)}}h1{{font-size:clamp(36px,6vw,76px);margin:0 0 26px}}.code{{font-size:clamp(82px,15vw,180px);font-weight:950;letter-spacing:.12em;line-height:1;margin:35px 0;color:#fff}}p{{font-size:clamp(17px,2vw,28px);line-height:1.5;color:#a9b5c5}}.ok{{font-size:clamp(22px,3vw,38px);color:#50dc8e;font-weight:800;margin:35px 0 12px}}.small{{font-size:16px}}.identify-text{{font-size:clamp(64px,12vw,150px);font-weight:950;letter-spacing:.06em;color:#fff;text-shadow:0 0 36px #c338ff}}.error{{margin-top:30px;padding:14px 18px;border:1px solid #66353b;background:#2b1519;border-radius:12px;color:#ffabb3}}.identify{{position:fixed;inset:0;border:28px solid #c338ff;box-sizing:border-box;pointer-events:none;animation:pulse .65s infinite alternate;box-shadow:inset 0 0 70px #c338ff}}@keyframes pulse{{to{{border-width:55px}}}}
 </style><meta http-equiv='refresh' content='2'></head><body><div class='wrap'><div class='brand'>AT CANVAS</div><h1>{headline}</h1>{content}{error}</div><div class='{identify_class.strip()}'></div></body></html>"""
 
 
 class StatusHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/health":
-            payload = json.dumps({"ok": True, "version": VERSION, "mode": runtime["mode"]}).encode()
+            with lock:
+                payload_obj = {
+                    "ok": True,
+                    "version": VERSION,
+                    "mode": runtime["mode"],
+                    "online": runtime["online"],
+                    "renderer_url": bool(runtime.get("renderer_url")),
+                    "browser_managed": browser_managed,
+                }
+            payload = json.dumps(payload_obj).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
@@ -321,56 +453,12 @@ def serve_local_ui() -> None:
     server.serve_forever()
 
 
-def chromium_binary() -> str | None:
-    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
-        found = shutil.which(name)
-        if found:
-            return found
-    return None
-
-
-def launch_browser(force: bool = False) -> None:
-    global browser_process
-    if not AUTO_LAUNCH:
-        return
-    if browser_process and browser_process.poll() is None:
-        if not force:
-            return
-        browser_process.terminate()
-        try:
-            browser_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            browser_process.kill()
-
-    chromium = chromium_binary()
-    if not chromium:
-        log("Chromium not installed; local UI remains available on port 8787")
-        return
-    url = f"http://127.0.0.1:{LOCAL_PORT}/"
-    args = [
-        chromium,
-        "--kiosk",
-        "--no-first-run",
-        "--disable-session-crashed-bubble",
-        "--disable-infobars",
-        "--disable-translate",
-        "--overscroll-history-navigation=0",
-        "--check-for-update-interval=31536000",
-        url,
-    ]
-    env = {**os.environ, "DISPLAY": DISPLAY, "XAUTHORITY": XAUTHORITY}
-    if os.geteuid() == 0 and shutil.which("runuser") and KIOSK_USER:
-        args = ["runuser", "-u", KIOSK_USER, "--"] + args
-    try:
-        browser_process = subprocess.Popen(args, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        log("Chromium kiosk launched")
-    except Exception as exc:
-        log(f"Chromium launch failed: {exc}")
-
-
 def browser_watchdog() -> None:
     while True:
-        launch_browser()
+        if browser_managed:
+            launch_browser()
+        elif AUTO_LAUNCH:
+            launch_browser()
         time.sleep(5)
 
 

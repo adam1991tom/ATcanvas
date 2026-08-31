@@ -5,7 +5,7 @@ ROOT_DIR="${AT_CANVAS_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && p
 BRANDING_DIR="$ROOT_DIR/display-client/branding"
 PLYMOUTH_DIR="/usr/share/plymouth/themes/at-canvas"
 ASSET_DIR="/usr/share/at-canvas/branding"
-LOGO_B64="$BRANDING_DIR/at-canvas-logo.png.b64"
+LOGO_SRC="$BRANDING_DIR/at-canvas-logo.png"
 LOGO_PNG="$ASSET_DIR/at-canvas-logo.png"
 
 if [[ $EUID -ne 0 ]]; then
@@ -13,28 +13,24 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-if [[ ! -s "$LOGO_B64" ]]; then
-  echo "ERROR: Missing AT Canvas logo source: $LOGO_B64"
+if [[ ! -s "$LOGO_SRC" ]]; then
+  echo "ERROR: Missing AT Canvas logo source: $LOGO_SRC"
+  exit 1
+fi
+
+if ! file "$LOGO_SRC" | grep -qi 'PNG image data'; then
+  echo "ERROR: AT Canvas logo source is not a valid PNG: $LOGO_SRC"
   exit 1
 fi
 
 echo "=== AT Canvas boot branding install ==="
 apt-get update
-apt-get install -y plymouth plymouth-themes plymouth-label initramfs-tools
+apt-get install -y plymouth plymouth-themes plymouth-label initramfs-tools file
 
 rm -rf "$PLYMOUTH_DIR"
 install -d -m 755 "$PLYMOUTH_DIR" "$ASSET_DIR"
-
-# Decode robustly even if the repository text has whitespace/newlines.
-tr -cd 'A-Za-z0-9+/=' < "$LOGO_B64" | base64 -d > "$LOGO_PNG"
-
-if ! file "$LOGO_PNG" | grep -qi 'PNG image data'; then
-  echo "ERROR: Decoded AT Canvas logo is not a valid PNG."
-  rm -f "$LOGO_PNG"
-  exit 1
-fi
-
-install -m 644 "$LOGO_PNG" "$PLYMOUTH_DIR/logo.png"
+install -m 644 "$LOGO_SRC" "$LOGO_PNG"
+install -m 644 "$LOGO_SRC" "$PLYMOUTH_DIR/logo.png"
 
 cat >"$PLYMOUTH_DIR/at-canvas.plymouth" <<'EOF'
 [Plymouth Theme]

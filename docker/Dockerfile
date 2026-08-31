@@ -4,4 +4,4 @@ COPY server/backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY server/backend/app ./app
 EXPOSE 8077
-CMD ["uvicorn","app.v33:app","--host","0.0.0.0","--port","8077"]
+CMD ["uvicorn","app.v34:app","--host","0.0.0.0","--port","8077"]

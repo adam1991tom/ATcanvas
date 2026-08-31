@@ -1,20 +1,21 @@
 # Architecture
 
 ## Principles
-1. Server owns configuration, integrations and layouts.
-2. Displays are thin Linux kiosk clients.
-3. Displays pair using a short-lived six-digit code.
-4. Long-lived device credentials replace pairing codes after claim.
-5. Layouts use a layer model so event/season overlays can be scheduled independently.
-6. Remote commands include identify, reload, power/display state, reboot and client update.
-7. Google credentials remain server-side.
+1. The AT Canvas server owns configuration, integrations, layouts, schedules and rendering.
+2. Displays are permanent browser URLs served directly by AT Canvas.
+3. No dedicated display client, pairing agent, heartbeat service or custom display OS is required.
+4. Any modern browser-capable device can show an AT Canvas display URL fullscreen.
+5. Layouts use a layer model so widgets and seasonal/event overlays can be arranged independently.
+6. Schedules are evaluated server-side and can switch layouts, show a black screen or apply a dim overlay.
+7. Display pages refresh automatically so server changes are picked up without client software updates.
+8. Google credentials remain server-side.
 
-## Planned modules
-- Displays
+## Core modules
+- Display URLs
 - Layouts + Layers
+- Media library
 - Google Calendar
-- Google Photos / media library
+- Google Photos
 - Events / seasonal overlays
-- Schedules / night mode / brightness
+- Schedules / night mode
 - Server updater
-- Display OTA updater

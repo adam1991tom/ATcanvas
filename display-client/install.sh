@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_URL="${AT_CANVAS_REPO_URL:-https://github.com/adam1991tom/ATcanvas.git}"
 INSTALL_DIR="${AT_CANVAS_INSTALL_DIR:-/opt/at-canvas}"
+BRANCH="${AT_CANVAS_BRANCH:-main}"
 SERVER_URL="${AT_CANVAS_SERVER:-http://10.0.0.2:8077}"
 KIOSK_USER="${AT_CANVAS_KIOSK_USER:-atcanvas}"
 
@@ -29,10 +30,11 @@ fi
 
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   git -C "$INSTALL_DIR" fetch origin
-  git -C "$INSTALL_DIR" reset --hard origin/main
+  git -C "$INSTALL_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
+  git -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
 else
   rm -rf "$INSTALL_DIR"
-  git clone "$REPO_URL" "$INSTALL_DIR"
+  git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$INSTALL_DIR"
 fi
 
 install -d -m 700 /var/lib/at-canvas
@@ -46,6 +48,7 @@ AT_CANVAS_SERVER=$SERVER_URL
 AT_CANVAS_STATE_DIR=/var/lib/at-canvas
 AT_CANVAS_KIOSK_USER=$KIOSK_USER
 AT_CANVAS_AUTO_LAUNCH=1
+AT_CANVAS_UPDATE_BRANCH=$BRANCH
 TZ=Europe/London
 DISPLAY=:0
 XAUTHORITY=/home/$KIOSK_USER/.Xauthority
@@ -74,6 +77,7 @@ systemctl restart at-canvas-client.service
 
 echo
 echo "AT Canvas Display Client installed."
+echo "Branch: $BRANCH"
 echo "Server: $SERVER_URL"
 echo "Local client status: http://127.0.0.1:8787"
 echo "Reboot the display to enter kiosk mode: sudo reboot"

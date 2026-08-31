@@ -1,5 +1,5 @@
-import json, time, urllib.request
-from fastapi import HTTPException
+import html, json, time, urllib.request
+from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from . import v32
@@ -154,6 +154,78 @@ def update_status_v33():
     return result
 
 
+# Schedules now actively affect the display heartbeat instead of being informational only.
+app.router.routes[:] = [r for r in app.router.routes if not (getattr(r, 'path', None) == '/api/display/heartbeat' and 'POST' in getattr(r, 'methods', set()))]
+
+@app.post('/api/display/heartbeat')
+def heartbeat_v33(body: BASE.main.Heartbeat, request: Request):
+    now = int(time.time())
+    with DB() as c:
+        row = c.execute('''SELECT d.*,s.name schedule_name,l.name layout_name
+                           FROM displays d
+                           LEFT JOIN schedules s ON s.id=d.schedule_id
+                           LEFT JOIN layouts l ON l.id=d.layout_id
+                           WHERE d.token=?''', (body.token,)).fetchone()
+        if not row:
+            raise HTTPException(401, 'Unknown display token')
+        c.execute('UPDATE displays SET last_seen=?,client_version=?,resolution=? WHERE token=?',
+                  (now, body.client_version, body.resolution, body.token))
+        block = v32.v31.v30._active_block(c, row['schedule_id'])
+        command = row['desired_command']
+        brightness = row['brightness']
+        layout_id = row['layout_id']
+        layout_name = row['layout_name'] or row['current_layout']
+        test_mode = bool(row['test_mode'])
+
+        if block:
+            action = block['action']
+            target = block.get('target') or ''
+            if action == 'layout' and target:
+                try:
+                    target_id = int(target)
+                except ValueError:
+                    target_id = 0
+                layout = c.execute('SELECT id,name FROM layouts WHERE id=?', (target_id,)).fetchone()
+                if layout:
+                    if layout_id != target_id or test_mode:
+                        c.execute('UPDATE displays SET layout_id=?,current_layout=?,test_mode=0 WHERE id=?',
+                                  (target_id, layout['name'], row['id']))
+                        command = 'reload'
+                    layout_id = target_id
+                    layout_name = layout['name']
+                    test_mode = False
+            elif action in {'screen_off', 'screen_on'}:
+                command = action
+            elif action == 'dim':
+                try:
+                    brightness = max(10, min(100, int(target or 25)))
+                except ValueError:
+                    brightness = 25
+            elif action == 'normal':
+                brightness = 100
+
+        base = str(request.base_url).rstrip('/')
+        renderer_url = f"{base}/display/{row['token']}"
+        return {
+            'ok': True,
+            'display': row['name'],
+            'version': VERSION,
+            'renderer_url': renderer_url,
+            'render_url': renderer_url,
+            'display_url': renderer_url,
+            'url': renderer_url,
+            'test_mode': test_mode,
+            'layout_id': layout_id,
+            'layout': layout_name,
+            'brightness': brightness,
+            'orientation': row['orientation'] or 'landscape',
+            'schedule_id': row['schedule_id'],
+            'schedule_name': row['schedule_name'],
+            'scheduled_action': block,
+            'command': command,
+        }
+
+
 @app.get('/layout/{layout_id}/preview', response_class=HTMLResponse)
 def layout_preview_v33(layout_id: int):
     with DB() as c:
@@ -161,6 +233,26 @@ def layout_preview_v33(layout_id: int):
         if not layout:
             raise HTTPException(404, 'Layout not found')
         layers = c.execute('SELECT * FROM layers WHERE layout_id=? ORDER BY z', (layout_id,)).fetchall()
+    page = v32.v31.v30.render_layout_html(layout, layers)
+    return page.replace('</body>', '<script>setInterval(()=>location.reload(),5000)</script></body>')
+
+
+# Live display pages refresh periodically so editor changes become visible during testing.
+app.router.routes[:] = [r for r in app.router.routes if not (getattr(r, 'path', None) == '/display/{token}' and 'GET' in getattr(r, 'methods', set()))]
+
+@app.get('/display/{token}', response_class=HTMLResponse)
+def display_page_v33(token: str):
+    with DB() as c:
+        d = c.execute('SELECT * FROM displays WHERE token=?', (token,)).fetchone()
+        if not d:
+            raise HTTPException(404, 'Display not paired')
+        if d['test_mode'] or not d['layout_id']:
+            page = v32.v31.v30.TEST_HTML.replace('DISPLAY TEST', html.escape(d['name']) + ' · TEST MODE')
+            return page.replace('AT Canvas v0.3.0', f'AT Canvas v{VERSION}')
+        layout = c.execute('SELECT * FROM layouts WHERE id=?', (d['layout_id'],)).fetchone()
+        if not layout:
+            return v32.v31.v30.TEST_HTML.replace('DISPLAY TEST', 'LAYOUT NOT FOUND')
+        layers = c.execute('SELECT * FROM layers WHERE layout_id=? ORDER BY z', (layout['id'],)).fetchall()
     page = v32.v31.v30.render_layout_html(layout, layers)
     return page.replace('</body>', '<script>setInterval(()=>location.reload(),5000)</script></body>')
 

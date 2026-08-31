@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 import time
 from . import v2
@@ -12,10 +13,13 @@ class OrientationPatch(BaseModel):
 
 VALID_ORIENTATIONS = {'landscape','portrait','landscape_flipped','portrait_flipped'}
 
-# Replace the original heartbeat route so displays receive orientation as part of config.
+# Replace routes that need v0.2.1 behavior.
 app.router.routes[:] = [
     r for r in app.router.routes
-    if not (getattr(r, 'path', None) == '/api/display/heartbeat' and 'POST' in getattr(r, 'methods', set()))
+    if not (
+        (getattr(r, 'path', None) == '/api/display/heartbeat' and 'POST' in getattr(r, 'methods', set()))
+        or (getattr(r, 'path', None) == '/admin-v2.js' and 'GET' in getattr(r, 'methods', set()))
+    )
 ]
 
 @app.post('/api/display/heartbeat')
@@ -59,3 +63,83 @@ def rotate_layout(layout_id: int):
             (row['height'], row['width'], int(time.time()), layout_id),
         )
     return {'ok': True, 'width': row['height'], 'height': row['width']}
+
+ROTATION_PATCH = r'''
+
+// AT Canvas v0.2.1 rotation controls
+const _openLayoutV20 = openLayout;
+openLayout = async function(id){
+  await _openLayoutV20(id);
+  const all = await api('/api/layouts');
+  const layout = all.find(x => x.id === id);
+  if(layout){
+    $('#canvas').style.aspectRatio = `${layout.width}/${layout.height}`;
+    $('#layoutInfo').textContent = `${layout.width}×${layout.height} · ${layout.width >= layout.height ? 'Landscape' : 'Portrait'}`;
+  }
+};
+
+const rotateLayoutBtn=document.createElement('button');
+rotateLayoutBtn.className='secondary';
+rotateLayoutBtn.type='button';
+rotateLayoutBtn.textContent='↻ Rotate layout';
+rotateLayoutBtn.onclick=async()=>{
+  if(!currentLayout) return alert('Select a layout first');
+  const r=await api(`/api/layouts/${currentLayout}/rotate`,{method:'POST'});
+  $('#canvas').style.aspectRatio=`${r.width}/${r.height}`;
+  await loadLayouts();
+};
+$('#widgetBar').prepend(rotateLayoutBtn);
+
+const orientationCycle={
+  landscape:'portrait',
+  portrait:'landscape_flipped',
+  landscape_flipped:'portrait_flipped',
+  portrait_flipped:'landscape'
+};
+const orientationLabel={
+  landscape:'Landscape 0°',
+  portrait:'Portrait 90°',
+  landscape_flipped:'Landscape 180°',
+  portrait_flipped:'Portrait 270°'
+};
+
+async function enhanceDisplayRotation(){
+  let displays=[];
+  try{displays=await api('/api/displays')}catch{return}
+  for(const target of ['#dashDisplays','#displayManager']){
+    const root=$(target); if(!root) continue;
+    root.querySelectorAll('.display').forEach(row=>{
+      const any=row.querySelector('[data-id]'); if(!any) return;
+      const id=Number(any.dataset.id);
+      const d=displays.find(x=>x.id===id); if(!d) return;
+      const info=row.querySelector('.muted');
+      if(info && !info.dataset.rotationAdded){
+        info.textContent += ` · ${orientationLabel[d.orientation||'landscape']}`;
+        info.dataset.rotationAdded='1';
+      }
+      const actions=row.querySelector('.actions');
+      if(actions && !actions.querySelector('[data-rotate]')){
+        const b=document.createElement('button');
+        b.className='secondary'; b.type='button'; b.dataset.rotate=id;
+        b.textContent='↻ Rotate 90°';
+        b.onclick=async()=>{
+          const current=d.orientation||'landscape';
+          const next=orientationCycle[current]||'portrait';
+          await api(`/api/displays/${id}/orientation`,{
+            method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({orientation:next})
+          });
+          await loadDisplays();
+          enhanceDisplayRotation();
+        };
+        actions.appendChild(b);
+      }
+    });
+  }
+}
+setTimeout(enhanceDisplayRotation,300);
+setInterval(enhanceDisplayRotation,2500);
+'''
+
+@app.get('/admin-v2.js')
+def admin_v21_js():
+    return Response(v2.JS_FILE.read_text() + ROTATION_PATCH, media_type='application/javascript')

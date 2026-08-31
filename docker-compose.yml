@@ -1,0 +1,17 @@
+services:
+  at-canvas:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: at-canvas
+    restart: unless-stopped
+    ports:
+      - "${AT_CANVAS_PORT:-8077}:8077"
+    environment:
+      AT_CANVAS_DB: ${AT_CANVAS_DB:-/data/at-canvas.db}
+      AT_CANVAS_VERSION: ${AT_CANVAS_VERSION:-0.1.0}
+      AT_CANVAS_ADMIN_TITLE: ${AT_CANVAS_ADMIN_TITLE:-AT Canvas}
+      TZ: Europe/London
+    volumes:
+      - ./data:/data
+      - /etc/localtime:/etc/localtime:ro

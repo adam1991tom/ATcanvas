@@ -1,16 +1,18 @@
 # AT Canvas
 
-Self-hosted smart display platform inspired by DAKboard, designed for centrally managed Linux display clients.
+AT Canvas is a self-hosted smart display platform. The server hosts the admin interface, layouts, schedules, media and the final display pages.
 
-## V0.1 goals
-- Dark modern web admin
-- Six-digit display pairing
-- Named displays with persistent tokens
-- Remote display status/heartbeat
-- Layout and layer model foundations
-- Display scheduling foundations
-- GitHub-ready CI and releases
-- Docker deployment
+## Display model
+There is no dedicated display client or custom display OS.
+
+Create a Display URL in the AT Canvas admin interface, then open that permanent URL fullscreen in any modern browser-capable device.
+
+Example:
+```text
+http://at-canvas-server:8077/display/<endpoint-token>
+```
+
+A display URL can be assigned a layout and schedule from the server. The page automatically refreshes so layout and schedule changes are picked up without installing AT Canvas software on the display device.
 
 ## Quick start
 ```bash
@@ -18,7 +20,6 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Open: http://localhost:8077
+Admin: `http://localhost:8077`
 
-## API docs
-http://localhost:8077/docs
+API docs: `http://localhost:8077/docs`

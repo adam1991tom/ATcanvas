@@ -1,7 +1,11 @@
 name: Build Server
+
 on:
   push:
+    branches: [server]
   pull_request:
+    branches: [server]
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,4 +17,4 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: false
-          tags: at-canvas:test
+          tags: at-canvas-server:test

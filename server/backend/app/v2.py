@@ -11,6 +11,7 @@ main.APP_VERSION = APP_VERSION
 DB_PATH = os.getenv('AT_CANVAS_DB', '/data/at-canvas.db')
 MEDIA_DIR = Path(os.getenv('AT_CANVAS_MEDIA', '/data/media'))
 UI_FILE = Path(__file__).with_name('admin_v2.html')
+JS_FILE = Path(__file__).with_name('admin_v2.js')
 
 def db():
     c=sqlite3.connect(DB_PATH); c.row_factory=sqlite3.Row; return c
@@ -182,3 +183,7 @@ app.router.routes[:] = [r for r in app.router.routes if not (getattr(r,'path',No
 @app.get('/',response_class=HTMLResponse)
 def admin_v2():
     return UI_FILE.read_text().replace('__VERSION__',APP_VERSION)
+
+@app.get('/admin-v2.js')
+def admin_v2_js():
+    return FileResponse(JS_FILE,media_type='application/javascript')

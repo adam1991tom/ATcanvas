@@ -9,7 +9,7 @@ services:
       - "${AT_CANVAS_PORT:-8077}:8077"
     environment:
       AT_CANVAS_DB: ${AT_CANVAS_DB:-/data/at-canvas.db}
-      AT_CANVAS_VERSION: "0.2.2"
+      AT_CANVAS_VERSION: "0.2.3"
       AT_CANVAS_ADMIN_TITLE: ${AT_CANVAS_ADMIN_TITLE:-AT Canvas}
       TZ: Europe/London
     volumes:

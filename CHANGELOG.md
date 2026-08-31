@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0
+- Replaced placeholder admin actions with working controls
+- Added persistent layouts stored in SQLite
+- Added 16:9 layout designer with draggable and resizable layers
+- Added widget layer creation for clock, text, calendar, photos, weather, countdown and media
+- Added layer visibility, locking and deletion controls
+- Added real media uploads for JPG, PNG, GIF, WebP, MP4 and WebM
+- Added event creation and deletion
+- Added schedule creation and deletion
+- Added persistent system settings
+- Added Google OAuth credential configuration screen
+- Added GitHub update check
+
 ## 0.1.1
 - Fixed left sidebar navigation
 - Added working Dashboard, Displays, Layouts, Media, Calendars, Events, Schedules, Updates and Settings views

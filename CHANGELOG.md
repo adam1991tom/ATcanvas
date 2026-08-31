@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+- Fixed AT Canvas logo rendering by embedding the bundled logo directly into the admin and pairing pages
+- Added Screen On control for paired displays
+- Renamed Off control to Screen Off for clarity
+- Added Screen On as a scheduling action
+
 ## 0.2.2
 - Added the official AT Canvas logo asset
 - Rebranded the admin UI with the purple/black AT Canvas colour palette

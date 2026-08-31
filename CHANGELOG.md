@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4
+- Replaced Room selection in the display pairing workflow with Schedule assignment
+- Added persistent per-display schedule assignment
+- Added schedule selector controls directly to paired display rows
+- Display heartbeat now returns assigned schedule ID and name
+- Existing databases migrate automatically by adding schedule_id to displays
+
 ## 0.2.3
 - Fixed AT Canvas logo rendering by embedding the bundled logo directly into the admin and pairing pages
 - Added Screen On control for paired displays

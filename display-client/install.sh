@@ -15,7 +15,9 @@ fi
 echo "=== AT Canvas Display Client installer ==="
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3 git curl xserver-xorg x11-xserver-utils openbox lightdm unclutter
+apt-get install -y python3 git curl openssh-server xserver-xorg x11-xserver-utils openbox lightdm unclutter
+systemctl enable --now ssh.service
+
 if apt-cache show chromium >/dev/null 2>&1; then
   apt-get install -y chromium
 elif apt-cache show chromium-browser >/dev/null 2>&1; then
@@ -79,5 +81,7 @@ echo
 echo "AT Canvas Display Client installed."
 echo "Branch: $BRANCH"
 echo "Server: $SERVER_URL"
+echo "SSH: enabled on TCP port 22"
+echo "SSH login: use an existing administrator account on this display"
 echo "Local client status: http://127.0.0.1:8787"
 echo "Reboot the display to enter kiosk mode: sudo reboot"

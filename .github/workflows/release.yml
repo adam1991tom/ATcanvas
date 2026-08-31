@@ -43,12 +43,20 @@ jobs:
           elif [[ -n "${{ github.event.inputs.version }}" ]]; then
             V="${{ github.event.inputs.version }}"
           else
-            V="$(tr -d '[:space:]' < server-src/VERSION 2>/dev/null || tr -d '[:space:]' < VERSION)"
+            V="$(tr -d '[:space:]' < server-src/VERSION)"
           fi
           V="${V#v}"
           test -n "$V"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
+
+      - name: Verify component versions
+        shell: bash
+        run: |
+          SERVER_V="$(tr -d '[:space:]' < server-src/VERSION)"
+          echo "Release version: ${{ steps.version.outputs.version }}"
+          echo "Server version:  $SERVER_V"
+          test "$SERVER_V" = "${{ steps.version.outputs.version }}"
 
       - name: Package display client
         shell: bash
@@ -58,7 +66,7 @@ jobs:
       - name: Package server source
         shell: bash
         run: |
-          tar -C server-src -czf "at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz" server docker docker-compose.yml .env.example
+          tar -C server-src -czf "at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz" server docker docker-compose.yml .env.example VERSION CHANGELOG.md
 
       - name: Docker login
         uses: docker/login-action@v3
@@ -90,6 +98,7 @@ jobs:
           - Server branch: \`server\` (${SERVER_SHA})
           - Screen branch: \`screen\` (${SCREEN_SHA})
           - Server Docker image: \`ghcr.io/${{ github.repository_owner }}/at-canvas-server:${{ steps.version.outputs.version }}\`
+          - Server source package: \`at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz\`
           - Display client package: \`at-canvas-screen-v${{ steps.version.outputs.version }}.tar.gz\`
 
           The \`main\` branch is the release/integration branch. Development happens on \`server\` and \`screen\`.
@@ -98,19 +107,26 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
             gh release upload "$TAG" \
               "at-canvas-screen-v${{ steps.version.outputs.version }}.tar.gz" \
               "at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz" \
-              --clobber
+              --clobber \
+              --repo "$GH_REPO"
+            gh release edit "$TAG" \
+              --title "AT Canvas v${{ steps.version.outputs.version }}" \
+              --notes-file release-notes.md \
+              --repo "$GH_REPO"
           else
             gh release create "$TAG" \
               "at-canvas-screen-v${{ steps.version.outputs.version }}.tar.gz" \
               "at-canvas-server-v${{ steps.version.outputs.version }}.tar.gz" \
               --target main \
               --title "AT Canvas v${{ steps.version.outputs.version }}" \
-              --notes-file release-notes.md
+              --notes-file release-notes.md \
+              --repo "$GH_REPO"
           fi

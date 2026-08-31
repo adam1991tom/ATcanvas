@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+- Added per-display orientation control
+- Added 0°, 90°, 180° and 270° display rotation states
+- Added Rotate 90° action to paired display controls
+- Added layout rotation between landscape and portrait
+- Layout designer canvas now follows the selected layout aspect ratio
+- Display heartbeat now returns the desired orientation for the Linux display client
+
 ## 0.2.0
 - Replaced placeholder admin actions with working controls
 - Added persistent layouts stored in SQLite

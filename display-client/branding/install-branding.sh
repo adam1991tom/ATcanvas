@@ -25,7 +25,15 @@ apt-get install -y plymouth plymouth-themes plymouth-label initramfs-tools
 rm -rf "$PLYMOUTH_DIR"
 install -d -m 755 "$PLYMOUTH_DIR" "$ASSET_DIR"
 
-base64 -d "$LOGO_B64" > "$LOGO_PNG"
+# Decode robustly even if the repository text has whitespace/newlines.
+tr -cd 'A-Za-z0-9+/=' < "$LOGO_B64" | base64 -d > "$LOGO_PNG"
+
+if ! file "$LOGO_PNG" | grep -qi 'PNG image data'; then
+  echo "ERROR: Decoded AT Canvas logo is not a valid PNG."
+  rm -f "$LOGO_PNG"
+  exit 1
+fi
+
 install -m 644 "$LOGO_PNG" "$PLYMOUTH_DIR/logo.png"
 
 cat >"$PLYMOUTH_DIR/at-canvas.plymouth" <<'EOF'
@@ -58,12 +66,9 @@ EOF
 
 chmod 644 "$PLYMOUTH_DIR/at-canvas.plymouth" "$PLYMOUTH_DIR/at-canvas.script" "$PLYMOUTH_DIR/logo.png"
 
-# Set theme first, then explicitly rebuild every initramfs. Some Debian installs
-# retain the previously selected distro theme if only the -R shortcut is used.
 plymouth-set-default-theme at-canvas
 update-initramfs -u -k all
 
-# Ensure the kernel actually requests Plymouth during boot.
 if [[ -f /etc/default/grub ]]; then
   if grep -q '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub; then
     sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3 systemd.show_status=false rd.systemd.show_status=false vt.global_cursor_default=0"/' /etc/default/grub
@@ -78,6 +83,9 @@ echo "===== BRANDING VERIFY ====="
 echo -n "Plymouth theme: "
 plymouth-set-default-theme
 ls -lah "$PLYMOUTH_DIR"
+echo
+echo "Logo file:"
+file "$PLYMOUTH_DIR/logo.png"
 echo
 echo "Initramfs entries:"
 lsinitramfs "/boot/initrd.img-$(uname -r)" | grep -E 'at-canvas|plymouth/themes/at-canvas' | head -30 || true

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+- Added the official AT Canvas logo asset
+- Rebranded the admin UI with the purple/black AT Canvas colour palette
+- Added the official logo to the admin sidebar and browser favicon
+- Rebuilt the display pairing page with AT Canvas branding
+- Pairing codes are now grouped visually as 3 + 3 digits
+
 ## 0.2.1
 - Added per-display orientation control
 - Added 0°, 90°, 180° and 270° display rotation states

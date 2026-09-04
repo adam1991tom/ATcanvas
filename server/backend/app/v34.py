@@ -125,7 +125,7 @@ def browser_update_status():
 
 @app.get('/',response_class=HTMLResponse)
 def admin_v34():
-    src=BASE.UI_FILE.read_text().replace('__VERSION__',VERSION)
+    src=BASE.UI_FILE.read_text().replace('__VERSION__',BASE.APP_VERSION)
     # Embed the real logo so it cannot fail because of a missing /assets static route.
     src=src.replace('/assets/atcanvas-logo.webp',LOGO_DATA)
     src=src.replace('Pair and manage your screens from one place.','Create browser display URLs and manage everything from one place.')

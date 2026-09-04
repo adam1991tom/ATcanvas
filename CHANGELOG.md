@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+- Fixed the admin page's version badge being permanently frozen at "v0.4.0" - v40.py
+  had a one-time hardcoded `.replace('v0.3.5','v0.4.0')` from an old release that
+  was never updated by any later version file, so the visible badge never matched
+  what was actually deployed. Now reads the live version at request time.
+- Added `Cache-Control: no-store` to the admin page and JS bundle so a browser (or
+  proxy) can never serve a stale cached copy after a deploy
+
 ## 0.6.0
 - The layout designer now shows a live, true-to-scale preview behind the draggable
   widget boxes, rendered from the same pipeline the real display uses (not a

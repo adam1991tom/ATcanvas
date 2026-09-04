@@ -91,20 +91,30 @@ def _is_public_get(path):
     return False
 
 
+_NO_CACHE_PATHS = {'/', '/login', '/admin-v2.js'}
+
+
 @app.middleware('http')
+
 async def require_login(request: Request, call_next):
     path = request.url.path
     if path in ('/login', '/api/login'):
-        return await call_next(request)
-    if request.method == 'GET' and _is_public_get(path):
-        return await call_next(request)
-    if request.method == 'PATCH' and _TODO_TOGGLE_RE.match(path):
-        return await call_next(request)
-    if not _verify_session(request.cookies.get(SESSION_COOKIE, '')):
+        response = await call_next(request)
+    elif request.method == 'GET' and _is_public_get(path):
+        response = await call_next(request)
+    elif request.method == 'PATCH' and _TODO_TOGGLE_RE.match(path):
+        response = await call_next(request)
+    elif not _verify_session(request.cookies.get(SESSION_COOKIE, '')):
         if path.startswith('/api/'):
             return JSONResponse({'detail': 'Login required'}, status_code=401)
         return RedirectResponse('/login')
-    return await call_next(request)
+    else:
+        response = await call_next(request)
+    # The admin shell/JS bundle changes on every deploy - never let a browser (or
+    # an intermediate proxy) serve a stale cached copy after an update.
+    if path in _NO_CACHE_PATHS:
+        response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 class LoginBody(BaseModel):

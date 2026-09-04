@@ -67,5 +67,8 @@ window.loadUpdateStatus = async function(){
   try{const j=await api('/api/updates/status');e.innerHTML=`<strong>Installed:</strong> v${esc(j.installed)}<br><strong>Server branch:</strong> ${esc(j.server?.commit||'unknown')} ${esc(j.server?.message||'')}<br><strong>Latest release:</strong> ${esc(j.release?.tag||'none')}`}
   catch(err){e.textContent=err.message}
 };
+// admin_v33.js bound #checkUpdates.onclick to its own (buggy, references x.screen) loadUpdateStatus
+// before this file redefined window.loadUpdateStatus - rebind so the button uses the fixed version.
+const cuBtn=document.getElementById('checkUpdates'); if(cuBtn) cuBtn.onclick=loadUpdateStatus;
 
 setTimeout(()=>loadDisplays(true),50);

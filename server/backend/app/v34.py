@@ -112,7 +112,7 @@ def browser_display(token:str):
 @app.get('/api/updates/status')
 def browser_update_status():
     import json,urllib.request
-    result={'ok':True,'installed':VERSION,'server':{},'release':None}
+    result={'ok':True,'installed':BASE.APP_VERSION,'server':{},'release':None}
     try:
         headers={'User-Agent':'AT-Canvas'}; req=urllib.request.Request('https://api.github.com/repos/adam1991tom/ATcanvas/commits/server',headers=headers)
         with urllib.request.urlopen(req,timeout=6) as r: d=json.load(r)

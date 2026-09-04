@@ -162,9 +162,12 @@ def del_schedule(schedule_id:int):
     with db() as c:c.execute('DELETE FROM schedules WHERE id=?',(schedule_id,))
     return {'deleted':True}
 
+_SENSITIVE_SETTING_MARKERS = ('secret', 'token', 'password')
 @app.get('/api/settings')
 def settings():
-    with db() as c:return {r['key']:r['value'] for r in c.execute('SELECT * FROM settings').fetchall()}
+    with db() as c:
+        rows = c.execute('SELECT * FROM settings').fetchall()
+    return {r['key']: r['value'] for r in rows if not any(m in r['key'].lower() for m in _SENSITIVE_SETTING_MARKERS)}
 @app.patch('/api/settings')
 def save_settings(body:SettingsPatch):
     with db() as c:

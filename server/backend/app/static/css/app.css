@@ -51,11 +51,15 @@ input,select,textarea{background:#0f0b14;color:var(--text);border:1px solid var(
 /* ---------- Designer ---------- */
 .designer{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.55fr);gap:16px}
 .canvas{position:relative;width:100%;aspect-ratio:16/9;background:#0f0b14;border:1px solid #4a2d5d;border-radius:10px;overflow:hidden;isolation:isolate}
-.widget{position:absolute;border:1px solid rgba(109,74,130,.5);background:rgba(35,22,45,.08);border-radius:8px;overflow:hidden;user-select:none;touch-action:none}
-.widget.sel{outline:2px solid var(--accent);border-color:var(--accent)}
-.widget-label{position:absolute;top:4px;left:4px;pointer-events:none}
-.widget-label strong,.widget-label .wtype{background:rgba(9,7,13,.7);padding:1px 5px;border-radius:5px;display:inline-block}
-.resize-handle{position:absolute;width:14px;height:14px;right:0;bottom:0;background:var(--accent);cursor:nwse-resize}
+/* No visible chrome until selected - the canvas should read as the live display, not an editor mockup. */
+.widget{position:absolute;border:1px solid transparent;overflow:visible;user-select:none;touch-action:none}
+.widget:hover{border-color:rgba(177,0,255,.35)}
+.widget.sel{border-color:var(--accent)}
+.widget-label{position:absolute;top:-24px;left:-1px;pointer-events:none;white-space:nowrap}
+.widget-label strong,.widget-label .wtype{background:var(--accent);color:#fff;padding:2px 7px;border-radius:5px 5px 0 0;display:inline-block;font-size:12px}
+.widget-label .wtype{background:transparent;opacity:.85;font-weight:400}
+.resize-handle{position:absolute;width:11px;height:11px;right:-6px;bottom:-6px;background:var(--accent);border:2px solid #fff;border-radius:50%;cursor:nwse-resize;display:none}
+.widget.sel .resize-handle{display:block}
 .widgetbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
 .layer-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:#120d19}
 

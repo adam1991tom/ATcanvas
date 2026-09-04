@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+- The layout designer now shows a live, true-to-scale preview behind the draggable
+  widget boxes, rendered from the same pipeline the real display uses (not a
+  redrawn approximation) - what you see while editing is what actually shows on
+  the wall
+
 ## 0.5.0
 - Added a native To-Do / chores list: shared checklist stored on the server, managed
   from a new admin To-Do page, and a `todo` widget layer that can be added to any

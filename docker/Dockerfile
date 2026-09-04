@@ -4,4 +4,4 @@ COPY server/backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY server/backend/app ./app
 EXPOSE 8077
-CMD ["uvicorn","app.v405:app","--host","0.0.0.0","--port","8077","--proxy-headers","--forwarded-allow-ips=*"]
+CMD ["uvicorn","app.v406:app","--host","0.0.0.0","--port","8077","--proxy-headers","--forwarded-allow-ips=*"]

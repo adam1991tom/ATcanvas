@@ -1,3 +1,4 @@
+import base64
 import hmac
 import hashlib
 import os
@@ -16,6 +17,9 @@ BASE = v406.BASE
 VERSION = '0.4.1'
 BASE.APP_VERSION = VERSION
 BASE.main.APP_VERSION = VERSION
+
+_LOGO_FILE = BASE.UI_FILE.parent / 'assets' / 'atcanvas-logo.webp'
+LOGO_DATA = 'data:image/webp;base64,' + base64.b64encode(_LOGO_FILE.read_bytes()).decode('ascii')
 
 ADMIN_USER = os.getenv('AT_CANVAS_ADMIN_USER', 'admin')
 ADMIN_PASSWORD = os.getenv('AT_CANVAS_ADMIN_PASSWORD', '')
@@ -114,13 +118,13 @@ LOGIN_HTML = '''<!doctype html><html><head><meta charset="utf-8">
 :root{color-scheme:dark;--bg:#090c10;--card:#12171d;--border:#27303a;--text:#eef3f8;--muted:#91a0b2;--accent:#6aa7ff}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .card{width:min(360px,92vw);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px}
-.brand{font-size:22px;font-weight:850;margin:0 0 20px}.brand span{color:var(--accent)}
+.brand{display:flex;justify-content:center;margin:0 0 20px}.brand img{width:170px;max-width:100%}
 input{width:100%;background:#0e1319;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px;font:inherit}
 button{width:100%;background:var(--accent);color:#07111e;border:0;padding:11px;border-radius:10px;font-weight:800;cursor:pointer;font:inherit}
 .msg{color:#f2b84b;font-size:13px;min-height:18px;margin-top:10px}
 </style></head><body>
 <form class="card" id="f">
-<div class="brand">AT <span>Canvas</span></div>
+<div class="brand"><img src="LOGO_DATA_PLACEHOLDER" alt="AT Canvas"></div>
 <input id="u" name="username" placeholder="Username" autocomplete="username" required>
 <input id="p" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
 <button type="submit">Sign in</button>
@@ -138,7 +142,7 @@ document.getElementById('f').addEventListener('submit', async e => {
   msg.textContent = j.detail || 'Invalid username or password';
 });
 </script>
-</body></html>'''
+</body></html>'''.replace('LOGO_DATA_PLACEHOLDER', LOGO_DATA)
 
 
 @app.get('/login', response_class=HTMLResponse)

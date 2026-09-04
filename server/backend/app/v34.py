@@ -78,7 +78,7 @@ def browser_displays(request: Request):
         return out
 
 
-def _reload(page: str, seconds: int=15)->str:
+def _reload(page: str, seconds: int=180)->str:
     extra=f'''<style>html,body{{cursor:none}}</style><script>setTimeout(()=>location.reload(),{seconds*1000});</script>'''
     return page.replace('</body>',extra+'</body>')
 

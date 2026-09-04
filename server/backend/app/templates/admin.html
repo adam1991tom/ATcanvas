@@ -1,0 +1,163 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AT Canvas</title>
+<link rel="icon" href="/static/assets/atcanvas-logo.webp">
+<link rel="stylesheet" href="/static/css/app.css">
+<script src="/static/js/alpine.min.js" defer></script>
+</head>
+<body x-data="atCanvas()" x-init="init()">
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><img src="/static/assets/atcanvas-logo.webp" alt="AT Canvas"></div>
+    <nav class="nav">
+      <template x-for="p in pages" :key="p.id">
+        <button :class="{active: page === p.id}" @click="go(p.id)" x-text="p.label"></button>
+      </template>
+    </nav>
+  </aside>
+  <main>
+
+    <!-- Dashboard -->
+    <section class="page" :class="{active: page === 'dashboard'}">
+      <div class="top"><div><h1>AT Canvas</h1><div class="muted">Your self-hosted wall calendar.</div></div><div class="muted" x-text="'v' + version"></div></div>
+      <div class="grid">
+        <div class="card"><div class="muted">Layouts</div><div class="metric" x-text="layouts.length"></div></div>
+        <div class="card"><div class="muted">Displays</div><div class="metric" x-text="displays.length"></div></div>
+      </div>
+    </section>
+
+    <!-- Layouts / designer -->
+    <section class="page" :class="{active: page === 'layouts'}">
+      <div class="top">
+        <div><h1>Layouts</h1><div class="muted">Design what shows on your displays - drag, resize, live preview.</div></div>
+        <button class="btn btn-primary" @click="promptCreateLayout()">+ New layout</button>
+      </div>
+      <div class="designer">
+        <div>
+          <div class="card">
+            <div class="top">
+              <div><h2 x-text="currentLayoutName() || 'Layout designer'"></h2><div class="muted" x-text="currentLayoutInfo() || 'Create or select a layout.'"></div></div>
+              <select @change="openLayout($event.target.value ? +$event.target.value : null)">
+                <option value="">Select layout…</option>
+                <template x-for="l in layouts" :key="l.id">
+                  <option :value="l.id" :selected="l.id === currentLayout" x-text="l.name"></option>
+                </template>
+              </select>
+            </div>
+            <div class="widgetbar">
+              <template x-for="t in widgetTypes" :key="t">
+                <button class="btn btn-secondary" @click="addWidget(t)" x-text="'+ ' + t"></button>
+              </template>
+            </div>
+            <div class="canvas" x-ref="canvas">
+              <template x-if="!currentLayout">
+                <div class="empty" style="margin:30px">No layout selected</div>
+              </template>
+              <iframe x-ref="previewFrame" style="position:absolute;top:0;left:0;border:0;pointer-events:none;transform-origin:top left;z-index:-1"></iframe>
+              <template x-for="l in layers" :key="l.id">
+                <div class="widget" :class="{sel: selectedLayer === l.id}"
+                     :style="`left:${l.x}%;top:${l.y}%;width:${l.w}%;height:${l.h}%;z-index:${l.z}`"
+                     @pointerdown="selectedLayer = l.id"
+                     @pointerdown.self="startDrag($event, l, false)">
+                  <strong x-text="l.name"></strong> <span class="wtype" x-text="l.type"></span>
+                  <div class="resize-handle" @pointerdown.stop="startDrag($event, l, true)"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div class="section card">
+            <h3>Your layouts</h3>
+            <template x-if="!layouts.length"><div class="empty">No layouts yet.</div></template>
+            <template x-for="l in layouts" :key="l.id">
+              <div class="row">
+                <div><strong x-text="l.name"></strong><div class="muted" x-text="`${l.width}×${l.height}`"></div></div>
+                <div class="actions">
+                  <button class="btn btn-secondary" @click="openLayout(l.id)">Open</button>
+                  <button class="btn btn-danger" @click="deleteLayout(l.id)">Delete</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Layers</h2>
+          <div class="muted" style="margin-bottom:12px">Drag to move, corner handle to resize.</div>
+          <template x-if="!layers.length"><div class="empty">Add a widget.</div></template>
+          <template x-for="l in [...layers].reverse()" :key="l.id">
+            <div class="layer-row">
+              <div><strong x-text="l.name"></strong><div class="muted" x-text="l.type"></div></div>
+              <div class="actions">
+                <button class="btn btn-secondary" @click="toggleLayerVisible(l)" x-text="l.visible ? '👁' : '🚫'"></button>
+                <button class="btn btn-danger" @click="deleteLayer(l.id)">×</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- Displays -->
+    <section class="page" :class="{active: page === 'displays'}">
+      <div class="top">
+        <div><h1>Displays</h1><div class="muted">Permanent browser URLs - open one fullscreen on any screen.</div></div>
+        <button class="btn btn-primary" @click="promptCreateDisplay()">+ New display</button>
+      </div>
+      <div class="card">
+        <template x-if="!displays.length"><div class="empty">No displays yet.</div></template>
+        <template x-for="d in displays" :key="d.id">
+          <div class="row">
+            <div>
+              <strong x-text="d.name"></strong>
+              <div class="muted" x-text="d.layout_name ? ('Layout: ' + d.layout_name) : 'No layout assigned (test screen)'"></div>
+              <div class="muted" x-text="d.url"></div>
+            </div>
+            <div class="actions">
+              <select @change="assignDisplayLayout(d, $event.target.value ? +$event.target.value : null)">
+                <option value="">No layout</option>
+                <template x-for="l in layouts" :key="l.id">
+                  <option :value="l.id" :selected="l.id === d.layout_id" x-text="l.name"></option>
+                </template>
+              </select>
+              <button class="btn btn-secondary" @click="copyDisplayUrl(d)">Copy URL</button>
+              <button class="btn btn-secondary" @click="openDisplayUrl(d)">Open</button>
+              <button class="btn btn-danger" @click="deleteDisplay(d.id)">Delete</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Modal -->
+<div class="modal-backdrop" x-show="modal.open" x-cloak @click.self="modal.open = false">
+  <div class="modal-box">
+    <div class="top"><h2 x-text="modal.title"></h2><button class="btn btn-secondary" @click="modal.open = false">Close</button></div>
+    <form class="modal-form" @submit.prevent="modal.onSubmit && modal.onSubmit()">
+      <template x-if="modal.type === 'layout'">
+        <div class="modal-form">
+          <label>Name<input x-model="modal.form.name" required placeholder="Family Dashboard"></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label>Width<input type="number" x-model.number="modal.form.width"></label>
+            <label>Height<input type="number" x-model.number="modal.form.height"></label>
+          </div>
+        </div>
+      </template>
+      <template x-if="modal.type === 'display'">
+        <label>Display name<input x-model="modal.form.name" required placeholder="Kitchen"></label>
+      </template>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" :class="{error: toast.error}" x-show="toast.msg" x-cloak x-text="toast.msg" x-transition></div>
+
+<script src="/static/js/admin.js"></script>
+</body>
+</html>

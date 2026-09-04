@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AT Canvas Display</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:{{ layout['background'] }};font-family:Inter,system-ui,sans-serif;cursor:none}
+.layer{position:absolute;overflow:hidden}
+</style>
+</head>
+<body>
+{{ widgets_html | safe }}
+</body>
+</html>

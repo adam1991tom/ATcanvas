@@ -15,7 +15,21 @@ function atCanvas() {
       { id: 'displays', label: 'Displays' },
     ],
     page: 'dashboard',
-    widgetTypes: ['clock', 'text'],
+    widgetTypes: ['clock', 'text', 'weather'],
+    widgetFields: {
+      clock: [
+        { key: 'clock_format', label: 'Format', type: 'select', options: [['24', '24-hour'], ['12', '12-hour']] },
+        { key: 'seconds', label: 'Show seconds', type: 'checkbox' },
+        { key: 'show_date', label: 'Show date', type: 'checkbox' },
+      ],
+      text: [
+        { key: 'text', label: 'Text', type: 'textarea' },
+      ],
+      weather: [
+        { key: 'location', label: 'Location', type: 'text', placeholder: 'London, UK' },
+        { key: 'units', label: 'Units', type: 'select', options: [['c', 'Celsius'], ['f', 'Fahrenheit']] },
+      ],
+    },
     layouts: [],
     displays: [],
     currentLayout: null,
@@ -112,6 +126,26 @@ function atCanvas() {
     async deleteLayer(id) {
       await api(`/api/layers/${id}`, { method: 'DELETE' });
       await this.openLayout(this.currentLayout);
+    },
+
+    editWidget(l) {
+      const fields = this.widgetFields[l.type];
+      if (!fields) return;
+      let cfg = {};
+      try { cfg = JSON.parse(l.config || '{}'); } catch (e) {}
+      const form = {};
+      fields.forEach(f => { form[f.key] = f.key in cfg ? cfg[f.key] : (f.type === 'checkbox' ? false : (f.type === 'select' ? f.options[0][0] : '')); });
+      this.modal = {
+        open: true, title: `Edit ${l.type}`, type: 'widget-settings', fields, form,
+        onSubmit: async () => {
+          try {
+            await api(`/api/layers/${l.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ config: { ...cfg, ...this.modal.form } }) });
+            this.modal.open = false;
+            await this.openLayout(this.currentLayout);
+            this.showToast('Widget updated');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
     },
 
     startDrag(evt, layer, resize) {

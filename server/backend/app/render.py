@@ -44,6 +44,22 @@ def render_text(layer, config):
     return content, ''
 
 
+@widget('weather')
+def render_weather(layer, config):
+    lid = layer['id']
+    content = f'<div id="wx-{lid}" style="width:100%;height:100%;overflow:hidden">Loading weather…</div>'
+    script = f"""(()=>{{const root=document.getElementById('wx-{lid}');
+async function load(){{try{{
+const r=await fetch('/api/widget/weather/{lid}');const j=await r.json();
+if(!r.ok)throw new Error(j.detail||'Weather error');
+const days=(j.days||[]).slice(0,5).map(d=>`<div style="text-align:center;background:rgba(255,255,255,.06);border-radius:.4em;padding:.3em"><div style="font-size:.5em;font-weight:700">${{new Date(d.date+'T12:00:00').toLocaleDateString('en-GB',{{weekday:'short'}})}}</div><div style="font-size:1em">${{d.icon}}</div><div style="font-size:.5em">${{Math.round(d.max)}}° <span style="opacity:.6">${{Math.round(d.min)}}°</span></div></div>`).join('');
+root.innerHTML=`<div style="font-size:.55em;opacity:.75">${{j.place}}</div><div style="display:flex;align-items:center;gap:.3em"><div style="font-size:1.6em">${{j.icon}}</div><div style="font-size:1.8em;font-weight:800">${{Math.round(j.temp)}}${{j.units}}</div></div><div style="font-size:.6em;opacity:.85;margin-bottom:.5em">${{j.condition}} · Feels ${{Math.round(j.feels_like)}}${{j.units}}</div><div style="display:grid;grid-template-columns:repeat(${{Math.min((j.days||[]).length,5)||1}},1fr);gap:.3em">${{days}}</div>`;
+}}catch(e){{root.textContent=e.message}}}}
+load();setInterval(load,15*60*1000);
+}})();"""
+    return content, script
+
+
 @widget('clock')
 def render_clock(layer, config):
     lid = layer['id']

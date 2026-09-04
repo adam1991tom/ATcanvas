@@ -92,6 +92,7 @@
             <div class="layer-row">
               <div><strong x-text="l.name"></strong><div class="muted" x-text="l.type"></div></div>
               <div class="actions">
+                <button class="btn btn-secondary" @click="editWidget(l)" x-show="widgetFields[l.type]">Edit</button>
                 <button class="btn btn-secondary" @click="toggleLayerVisible(l)" x-text="l.visible ? '👁' : '🚫'"></button>
                 <button class="btn btn-danger" @click="deleteLayer(l.id)">×</button>
               </div>
@@ -151,6 +152,27 @@
       </template>
       <template x-if="modal.type === 'display'">
         <label>Display name<input x-model="modal.form.name" required placeholder="Kitchen"></label>
+      </template>
+      <template x-if="modal.type === 'widget-settings'">
+        <div class="modal-form">
+          <template x-for="f in modal.fields" :key="f.key">
+            <label>
+              <span x-text="f.label"></span>
+              <template x-if="f.type === 'text'"><input x-model="modal.form[f.key]" :placeholder="f.placeholder || ''"></template>
+              <template x-if="f.type === 'textarea'"><textarea x-model="modal.form[f.key]" rows="4"></textarea></template>
+              <template x-if="f.type === 'select'">
+                <select x-model="modal.form[f.key]">
+                  <template x-for="opt in f.options" :key="opt[0]">
+                    <option :value="opt[0]" x-text="opt[1]"></option>
+                  </template>
+                </select>
+              </template>
+              <template x-if="f.type === 'checkbox'">
+                <input type="checkbox" x-model="modal.form[f.key]" style="width:auto">
+              </template>
+            </label>
+          </template>
+        </div>
       </template>
       <button type="submit" class="btn btn-primary">Save</button>
     </form>

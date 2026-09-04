@@ -32,6 +32,15 @@ function atCanvas() {
       await Promise.all([this.loadLayouts(), this.loadDisplays()]);
       const hash = location.hash.replace('#', '');
       if (['layouts', 'displays'].includes(hash)) this.go(hash);
+      this.$nextTick(() => {
+        if (this.$refs.canvas) {
+          // The canvas can still be zero-width on first paint (grid/aspect-ratio
+          // layout not settled yet), which used to make refreshPreview() silently
+          // bail out and never retry - the iframe kept no `src` forever. Watching
+          // for real size changes makes this self-heal instead of failing once.
+          new ResizeObserver(() => this.refreshPreview()).observe(this.$refs.canvas);
+        }
+      });
     },
 
     go(page) {
@@ -148,6 +157,7 @@ function atCanvas() {
       frame.style.width = lay.width + 'px';
       frame.style.height = lay.height + 'px';
       frame.style.transform = `scale(${scale})`;
+      frame.style.zIndex = '0';
       frame.src = `/layout/${this.currentLayout}/preview?_=${Date.now()}`;
     },
 

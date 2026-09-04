@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AT Canvas</title>
-<link rel="icon" href="/static/assets/atcanvas-logo.webp">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23b100ff'/%3E%3Ctext x='16' y='23' font-family='system-ui,sans-serif' font-size='19' font-weight='800' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/css/app.css">
 <script src="/static/js/alpine.min.js" defer></script>
 </head>
 <body x-data="atCanvas()" x-init="init()">
 <div class="shell">
   <aside class="side">
-    <div class="brand"><img src="/static/assets/atcanvas-logo.webp" alt="AT Canvas"></div>
+    <div class="brand"><div class="wordmark">AT <span>Canvas</span></div></div>
     <nav class="nav">
       <template x-for="p in pages" :key="p.id">
         <button :class="{active: page === p.id}" @click="go(p.id)" x-text="p.label"></button>
@@ -56,13 +56,15 @@
               <template x-if="!currentLayout">
                 <div class="empty" style="margin:30px">No layout selected</div>
               </template>
-              <iframe x-ref="previewFrame" style="position:absolute;top:0;left:0;border:0;pointer-events:none;transform-origin:top left;z-index:-1"></iframe>
+              <iframe x-ref="previewFrame" style="position:absolute;top:0;left:0;border:0;pointer-events:none;transform-origin:top left;z-index:0"></iframe>
               <template x-for="l in layers" :key="l.id">
                 <div class="widget" :class="{sel: selectedLayer === l.id}"
                      :style="`left:${l.x}%;top:${l.y}%;width:${l.w}%;height:${l.h}%;z-index:${l.z}`"
                      @pointerdown="selectedLayer = l.id"
                      @pointerdown.self="startDrag($event, l, false)">
-                  <strong x-text="l.name"></strong> <span class="wtype" x-text="l.type"></span>
+                  <template x-if="selectedLayer === l.id">
+                    <div class="widget-label"><strong x-text="l.name"></strong> <span class="wtype" x-text="l.type"></span></div>
+                  </template>
                   <div class="resize-handle" @pointerdown.stop="startDrag($event, l, true)"></div>
                 </div>
               </template>

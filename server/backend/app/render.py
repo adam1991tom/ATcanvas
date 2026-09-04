@@ -53,7 +53,9 @@ def render_clock(layer, config):
     content = f'<div class="at-clock" id="clock-{lid}"></div>'
     script = f"""(()=>{{const el=document.getElementById('clock-{lid}');function tick(){{
 const d=new Date();
-const t=d.toLocaleTimeString('en-GB',{{hour:'2-digit',minute:'2-digit',second:{str(seconds).lower()},hour12:{str(fmt12).lower()}}});
+const opts={{hour:'2-digit',minute:'2-digit',hour12:{str(fmt12).lower()}}};
+if({str(seconds).lower()})opts.second='2-digit';
+const t=d.toLocaleTimeString('en-GB',opts);
 const date={str(show_date).lower()}?'<div style="font-size:.45em;opacity:.75;margin-top:.2em">'+d.toLocaleDateString('en-GB',{{weekday:'long',day:'numeric',month:'long',year:'numeric'}})+'</div>':'';
 el.innerHTML='<div>'+t+'</div>'+date}}tick();setInterval(tick,1000)}})();"""
     return content, script

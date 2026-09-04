@@ -4,6 +4,7 @@ import os
 import re
 import secrets
 import time
+
 from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -68,8 +69,12 @@ def _make_session():
 
 
 _MEDIA_FILE_RE = re.compile(r'^/api/media/\d+/file$')
-_PUBLIC_EXACT = {'/login', '/api/login', '/api/health', '/assets/atcanvas-logo.webp'}
+_PUBLIC_EXACT = {'/login', '/api/login', '/api/health', '/assets/atcanvas-logo.webp', '/api/events/active'}
 _PUBLIC_PREFIXES = ('/display/', '/api/widget/')
+# Wall-display kiosks are unauthenticated by design; a to-do/chore checklist shown on the
+# display needs to be tickable from that same screen, so its toggle route stays public too
+# (same trust boundary as anyone physically able to touch the display).
+_TODO_TOGGLE_RE = re.compile(r'^/api/todos/\d+$')
 
 
 def _is_public_get(path):
@@ -88,6 +93,8 @@ async def require_login(request: Request, call_next):
     if path in ('/login', '/api/login'):
         return await call_next(request)
     if request.method == 'GET' and _is_public_get(path):
+        return await call_next(request)
+    if request.method == 'PATCH' and _TODO_TOGGLE_RE.match(path):
         return await call_next(request)
     if not _verify_session(request.cookies.get(SESSION_COOKIE, '')):
         if path.startswith('/api/'):

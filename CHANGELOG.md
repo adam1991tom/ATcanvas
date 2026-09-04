@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+- Added a native To-Do / chores list: shared checklist stored on the server, managed
+  from a new admin To-Do page, and a `todo` widget layer that can be added to any
+  layout - items can be ticked directly on the wall display itself (no login needed
+  on that one action, matching the "anyone standing at the screen" trust model of a
+  kiosk display)
+- Added seasonal/holiday display effects: each Event can now be given an effect
+  (snow, rain, halloween, confetti, hearts, stars) that automatically renders as a
+  fullscreen animated overlay on every display while that event's date range is active
+- Added an optional fullscreen weather animation: when enabled on a weather widget,
+  the display renders a fullscreen animated overlay (rain/snow/fog/stars/etc.) driven
+  by the widget's live weather condition when no seasonal event is active
+- Investigated Google Photos as a photo-widget source: Google discontinued
+  third-party live album access in March 2025 (shared albums and broad Library API
+  access now return 403), so a DAKboard-style syncing photo album isn't currently
+  buildable - the existing local-upload photo slideshow widget remains the supported
+  path
+
 ## 0.4.1
 - Fixed reflected XSS in the Google OAuth callback error page (error text is now HTML-escaped)
 - Added admin login (username/password, signed session cookie) in front of the admin UI and all `/api/*` routes

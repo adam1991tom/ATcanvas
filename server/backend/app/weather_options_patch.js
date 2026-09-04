@@ -25,16 +25,18 @@
         <label class="dv2-check"><input type="checkbox" id="wx2Chance"> Rain chance</label>
         <label class="dv2-check"><input type="checkbox" id="wx2HighLow"> Daily high / low</label>
         <label class="dv2-check"><input type="checkbox" id="wx2Condition"> Condition text</label>
+        <label class="dv2-check"><input type="checkbox" id="wx2FxFullscreen"> Fullscreen weather animation (snow/rain/etc across the whole display)</label>
       </div>`;
     pane.appendChild(box);
     q('#wx2Mode').value=c.weather_mode||'full'; q('#wx2Units').value=c.weather_units||'c'; q('#wx2Icon').value=c.icon_size||'large'; q('#wx2Location').value=c.show_weather_location===false?'no':'yes';
     q('#wx2Feels').checked=c.show_feels!==false; q('#wx2Chance').checked=c.show_rain_chance!==false; q('#wx2HighLow').checked=c.show_high_low!==false; q('#wx2Condition').checked=c.show_condition!==false;
+    q('#wx2FxFullscreen').checked=!!c.fullscreen_effect;
     const save=modal.querySelector('[data-save]');
     save?.addEventListener('click',()=>{
       const merged={...c,
         weather_mode:q('#wx2Mode')?.value||'full', weather_units:q('#wx2Units')?.value||'c', icon_size:q('#wx2Icon')?.value||'large',
         show_weather_location:q('#wx2Location')?.value!=='no', show_feels:!!q('#wx2Feels')?.checked, show_rain_chance:!!q('#wx2Chance')?.checked,
-        show_high_low:!!q('#wx2HighLow')?.checked, show_condition:!!q('#wx2Condition')?.checked,
+        show_high_low:!!q('#wx2HighLow')?.checked, show_condition:!!q('#wx2Condition')?.checked, fullscreen_effect:!!q('#wx2FxFullscreen')?.checked,
         weather_source:q('#dvWeatherSource')?.value||c.weather_source||'openmeteo', location:q('#dvLocation')?.value||c.location||'',
         current:q('#dv_current')?.checked!==false, sun:q('#dv_sun')?.checked!==false, humidity:q('#dv_humidity')?.checked!==false,
         wind:q('#dv_wind')?.checked!==false, pressure:q('#dv_pressure')?.checked!==false, visibility:q('#dv_visibility')?.checked!==false,

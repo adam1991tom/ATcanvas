@@ -1,3 +1,4 @@
+import html
 import json
 import secrets
 import time
@@ -87,7 +88,7 @@ def google_auth_start(request: Request):
     q=urllib.parse.urlencode({'client_id':s['google_client_id'],'redirect_uri':redirect,'response_type':'code','scope':GOOGLE_SCOPE,'access_type':'offline','prompt':'consent','include_granted_scopes':'true','state':state}); return {'url':AUTH_URL+'?'+q,'redirect_uri':redirect}
 @app.get('/api/google/oauth/callback', response_class=HTMLResponse)
 def google_oauth_callback(code: str='', state: str='', error: str=''):
-    if error: return f'<!doctype html><html><body style="font-family:system-ui;background:#0b0710;color:#fff;padding:40px"><h2>Google connection failed</h2><p>{error}</p></body></html>'
+    if error: return f'<!doctype html><html><body style="font-family:system-ui;background:#0b0710;color:#fff;padding:40px"><h2>Google connection failed</h2><p>{html.escape(error)}</p></body></html>'
     s=_settings(['google_client_id','google_client_secret','google_redirect_uri','google_oauth_state'])
     if not code or not state or state != s.get('google_oauth_state'): raise HTTPException(400,'Invalid Google OAuth state')
     data=_json_request(TOKEN_URL,'POST',{'code':code,'client_id':s.get('google_client_id',''),'client_secret':s.get('google_client_secret',''),'redirect_uri':s.get('google_redirect_uri',''),'grant_type':'authorization_code'}); values={'google_access_token':data.get('access_token',''),'google_token_expires':int(time.time())+int(data.get('expires_in',3600))}

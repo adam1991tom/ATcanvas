@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+- Fixed reflected XSS in the Google OAuth callback error page (error text is now HTML-escaped)
+- Added admin login (username/password, signed session cookie) in front of the admin UI and all `/api/*` routes
+- Kept `/display/<token>` pages, display media/widget data endpoints and `/api/health` publicly reachable so existing screens keep working without logging in
+- Admin password and username are now set via `AT_CANVAS_ADMIN_USER` / `AT_CANVAS_ADMIN_PASSWORD` in `.env`
+
 ## 0.3.4
 - Retired the dedicated AT Canvas display client and custom display OS model
 - Removed display-client source and systemd service from the active server branch

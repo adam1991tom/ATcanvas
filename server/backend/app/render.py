@@ -44,6 +44,32 @@ def render_text(layer, config):
     return content, ''
 
 
+@widget('calendar')
+def render_calendar(layer, config):
+    lid = layer['id']
+    days = int(config.get('days', 14) or 14)
+    limit = int(config.get('limit', 12) or 12)
+    content = f'<div id="cal-{lid}" style="width:100%;height:100%;overflow:hidden">Loading calendar…</div>'
+    script = f"""(()=>{{const root=document.getElementById('cal-{lid}');
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;'}}[c]));
+async function load(){{try{{
+const r=await fetch('/api/widget/calendar-events?days={days}&limit={limit}');const j=await r.json();
+if(!r.ok)throw new Error(j.detail||'Calendar error');
+if(!j.events||!j.events.length){{root.innerHTML=j.selected_calendars?'<div style="opacity:.6">No upcoming events</div>':'<div style="opacity:.6">Connect a calendar in Settings</div>';return}}
+let lastDay='';
+root.innerHTML=j.events.map(e=>{{
+const d=e.all_day?new Date(e.start+'T00:00:00'):new Date(e.start);
+const dayKey=d.toDateString();
+const dayHeader=dayKey!==lastDay?(()=>{{lastDay=dayKey;return `<div style="font-size:.55em;font-weight:800;opacity:.7;margin:.5em 0 .2em">${{d.toLocaleDateString('en-GB',{{weekday:'long',day:'numeric',month:'long'}})}}</div>`}})():'';
+const time=e.all_day?'All day':d.toLocaleTimeString('en-GB',{{hour:'2-digit',minute:'2-digit'}});
+return dayHeader+`<div style="border-left:4px solid ${{e.color}};padding:.4em .6em;margin:.2em 0;background:rgba(255,255,255,.04);border-radius:.25em"><div style="font-weight:700;font-size:.62em">${{esc(e.summary)}}</div><div style="font-size:.5em;opacity:.7">${{time}}${{e.location?' · '+esc(e.location):''}}</div></div>`;
+}}).join('');
+}}catch(e){{root.textContent=e.message}}}}
+load();setInterval(load,5*60*1000);
+}})();"""
+    return content, script
+
+
 @widget('weather')
 def render_weather(layer, config):
     lid = layer['id']

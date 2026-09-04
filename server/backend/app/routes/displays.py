@@ -107,5 +107,8 @@ def layout_preview(layout_id: int):
         if not layout:
             raise HTTPException(404, 'Layout not found')
         layers = c.execute('SELECT * FROM layers WHERE layout_id=? ORDER BY z', (layout_id,)).fetchall()
-    page = renderer.render_layout(layout, layers, templates)
-    return page.replace('</body>', '<script>setInterval(()=>location.reload(),5000)</script></body>')
+    # No periodic reload here (unlike the real display page) - every widget already
+    # self-refreshes its own data on its own interval, and the designer's outer JS
+    # re-sets this iframe's src whenever something is actually edited. A reload loop
+    # here just caused a visible blank flash every few seconds in the live preview.
+    return renderer.render_layout(layout, layers, templates)

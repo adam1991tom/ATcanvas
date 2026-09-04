@@ -133,6 +133,44 @@
       </div>
     </section>
 
+    <!-- Settings -->
+    <section class="page" :class="{active: page === 'settings'}">
+      <div class="top"><div><h1>Settings</h1><div class="muted">Connect Google Calendar so the calendar widget has something to show.</div></div></div>
+      <div class="card">
+        <h2>Google Calendar</h2>
+        <template x-if="!google.configured">
+          <div>
+            <p class="muted">No Google OAuth credentials configured yet.</p>
+            <button class="btn btn-primary" @click="promptGoogleConfig()">Add credentials</button>
+          </div>
+        </template>
+        <template x-if="google.configured && !google.connected">
+          <div>
+            <p class="muted">Credentials saved. Redirect URI: <code x-text="google.redirectUri"></code></p>
+            <button class="btn btn-primary" @click="connectGoogle()">Connect Google</button>
+            <button class="btn btn-secondary" @click="promptGoogleConfig()">Edit credentials</button>
+          </div>
+        </template>
+        <template x-if="google.connected">
+          <div>
+            <p class="muted" style="color:var(--good)">Connected ✓</p>
+            <button class="btn btn-danger" @click="disconnectGoogle()">Disconnect</button>
+            <div class="section">
+              <h3>Calendars</h3>
+              <div class="muted" style="margin-bottom:10px">Tick every calendar the calendar widget should show.</div>
+              <template x-if="!google.calendars.length"><div class="empty">No calendars found.</div></template>
+              <template x-for="cal in google.calendars" :key="cal.id">
+                <label class="row" style="cursor:pointer">
+                  <span x-text="cal.summary"></span>
+                  <input type="checkbox" :checked="cal.selected" @change="toggleGoogleCalendar(cal)" style="width:auto">
+                </label>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -152,6 +190,14 @@
       </template>
       <template x-if="modal.type === 'display'">
         <label>Display name<input x-model="modal.form.name" required placeholder="Kitchen"></label>
+      </template>
+      <template x-if="modal.type === 'google-config'">
+        <div class="modal-form">
+          <label>Client ID<input x-model="modal.form.client_id" required></label>
+          <label>Client Secret<input x-model="modal.form.client_secret" type="password" placeholder="Leave blank to keep existing"></label>
+          <label>Redirect URI<input x-model="modal.form.redirect_uri" required></label>
+          <div class="muted">This exact Redirect URI must be added to the OAuth client's Authorized redirect URIs in Google Cloud Console.</div>
+        </div>
       </template>
       <template x-if="modal.type === 'widget-settings'">
         <div class="modal-form">

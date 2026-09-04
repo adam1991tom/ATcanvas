@@ -13,9 +13,10 @@ function atCanvas() {
       { id: 'dashboard', label: 'Dashboard' },
       { id: 'layouts', label: 'Layouts' },
       { id: 'displays', label: 'Displays' },
+      { id: 'settings', label: 'Settings' },
     ],
     page: 'dashboard',
-    widgetTypes: ['clock', 'text', 'weather'],
+    widgetTypes: ['clock', 'text', 'weather', 'calendar'],
     widgetFields: {
       clock: [
         { key: 'clock_format', label: 'Format', type: 'select', options: [['24', '24-hour'], ['12', '12-hour']] },
@@ -29,7 +30,12 @@ function atCanvas() {
         { key: 'location', label: 'Location', type: 'text', placeholder: 'London, UK' },
         { key: 'units', label: 'Units', type: 'select', options: [['c', 'Celsius'], ['f', 'Fahrenheit']] },
       ],
+      calendar: [
+        { key: 'days', label: 'Days ahead', type: 'select', options: [['7', '1 week'], ['14', '2 weeks'], ['30', '1 month']] },
+        { key: 'limit', label: 'Max events shown', type: 'select', options: [['8', '8'], ['12', '12'], ['20', '20']] },
+      ],
     },
+    google: { configured: false, connected: false, calendars: [] },
     layouts: [],
     displays: [],
     currentLayout: null,
@@ -44,8 +50,11 @@ function atCanvas() {
         this.version = h.version;
       } catch (e) {}
       await Promise.all([this.loadLayouts(), this.loadDisplays()]);
+      window.addEventListener('message', e => {
+        if (e.data === 'atcanvas-google-connected') this.loadGoogleStatus();
+      });
       const hash = location.hash.replace('#', '');
-      if (['layouts', 'displays'].includes(hash)) this.go(hash);
+      if (['layouts', 'displays', 'settings'].includes(hash)) this.go(hash);
       this.$nextTick(() => {
         if (this.$refs.canvas) {
           // The canvas can still be zero-width on first paint (grid/aspect-ratio
@@ -60,6 +69,56 @@ function atCanvas() {
     go(page) {
       this.page = page;
       location.hash = page === 'dashboard' ? '' : page;
+      if (page === 'settings') this.loadGoogleStatus();
+    },
+
+    async loadGoogleStatus() {
+      try {
+        const s = await api('/api/google/status');
+        this.google.configured = s.configured;
+        this.google.connected = s.connected;
+        this.google.redirectUri = s.redirect_uri;
+        if (s.connected) await this.loadGoogleCalendars();
+      } catch (e) {}
+    },
+
+    async loadGoogleCalendars() {
+      try { this.google.calendars = await api('/api/google/calendars'); } catch (e) { this.google.calendars = []; }
+    },
+
+    promptGoogleConfig() {
+      this.modal = {
+        open: true, title: 'Google OAuth credentials', type: 'google-config',
+        form: { client_id: '', client_secret: '', redirect_uri: this.google.redirectUri || (location.origin + '/api/google/oauth/callback') },
+        onSubmit: async () => {
+          try {
+            await api('/api/google/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadGoogleStatus();
+            this.showToast('Google credentials saved');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+
+    async connectGoogle() {
+      try {
+        const j = await api('/api/google/auth/start');
+        window.open(j.url, 'atcanvas-google-connect', 'width=520,height=680');
+      } catch (e) { this.showToast(e.message, true); }
+    },
+
+    async disconnectGoogle() {
+      if (!confirm('Disconnect Google Calendar?')) return;
+      await api('/api/google/disconnect', { method: 'POST' });
+      await this.loadGoogleStatus();
+      this.showToast('Disconnected');
+    },
+
+    async toggleGoogleCalendar(cal) {
+      cal.selected = !cal.selected;
+      const ids = this.google.calendars.filter(c => c.selected).map(c => c.id);
+      await api('/api/google/calendars/selection', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ calendar_ids: ids }) });
     },
 
     showToast(msg, error = false) {

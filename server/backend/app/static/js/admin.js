@@ -200,6 +200,22 @@ function atCanvas() {
       };
     },
 
+    promptDuplicateLayout(l) {
+      this.modal = {
+        open: true, title: `Duplicate "${l.name}"`, type: 'layout-duplicate',
+        form: { name: `${l.name} (portrait)`, width: l.height, height: l.width },
+        onSubmit: async () => {
+          try {
+            const j = await api(`/api/layouts/${l.id}/duplicate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadLayouts();
+            await this.openLayout(j.id);
+            this.showToast('Layout duplicated - drag the blocks into place for the new size');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+
     async deleteLayout(id) {
       if (!confirm('Delete this layout?')) return;
       await api(`/api/layouts/${id}`, { method: 'DELETE' });

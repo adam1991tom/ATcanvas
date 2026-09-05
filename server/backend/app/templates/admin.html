@@ -78,6 +78,7 @@
                 <div><strong x-text="l.name"></strong><div class="muted" x-text="`${l.width}×${l.height}`"></div></div>
                 <div class="actions">
                   <button class="btn btn-secondary" @click="openLayout(l.id)">Open</button>
+                  <button class="btn btn-secondary" @click="promptDuplicateLayout(l)">Duplicate</button>
                   <button class="btn btn-danger" @click="deleteLayout(l.id)">Delete</button>
                 </div>
               </div>
@@ -405,13 +406,16 @@
   <div class="modal-box">
     <div class="top"><h2 x-text="modal.title"></h2><button class="btn btn-secondary" @click="modal.open = false">Close</button></div>
     <form class="modal-form" @submit.prevent="modal.onSubmit && modal.onSubmit()">
-      <template x-if="modal.type === 'layout'">
+      <template x-if="modal.type === 'layout' || modal.type === 'layout-duplicate'">
         <div class="modal-form">
           <label>Name<input x-model="modal.form.name" required placeholder="Family Dashboard"></label>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <label>Width<input type="number" x-model.number="modal.form.width"></label>
             <label>Height<input type="number" x-model.number="modal.form.height"></label>
           </div>
+          <template x-if="modal.type === 'layout-duplicate'">
+            <div class="muted">Copies all the widget blocks from the original layout. Their positions carry over as a starting point - you'll likely want to drag/resize them once you're in here, especially if the shape changed.</div>
+          </template>
         </div>
       </template>
       <template x-if="modal.type === 'display'">

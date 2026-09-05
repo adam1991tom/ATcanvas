@@ -21,6 +21,12 @@ class LayoutPatch(BaseModel):
     background: str | None = None
 
 
+class LayoutDuplicate(BaseModel):
+    name: str
+    width: int | None = None
+    height: int | None = None
+
+
 class LayerCreate(BaseModel):
     type: str
     name: str | None = None
@@ -57,6 +63,38 @@ def create_layout(body: LayoutCreate):
         except Exception:
             raise HTTPException(400, 'A layout with that name already exists')
     return {'id': cur.lastrowid}
+
+
+@router.post('/api/layouts/{layout_id}/duplicate')
+def duplicate_layout(layout_id: int, body: LayoutDuplicate):
+    """Copy a layout's widgets into a new layout - typically used to start a
+    portrait (or otherwise differently-shaped) version of an existing design
+    without rebuilding every widget from scratch. Block positions carry over
+    as percentages of the *old* canvas shape, so they'll usually need
+    rearranging/resizing in the designer to look right on the new canvas -
+    this just gives you a running start instead of a blank layout."""
+    now = int(time.time())
+    with dbmod.get_db() as c:
+        src = c.execute('SELECT * FROM layouts WHERE id=?', (layout_id,)).fetchone()
+        if not src:
+            raise HTTPException(404, 'Layout not found')
+        width = body.width or src['width']
+        height = body.height or src['height']
+        try:
+            cur = c.execute(
+                'INSERT INTO layouts(name,width,height,background,created_at,updated_at) VALUES(?,?,?,?,?,?)',
+                (body.name.strip(), width, height, src['background'], now, now),
+            )
+        except Exception:
+            raise HTTPException(400, 'A layout with that name already exists')
+        new_id = cur.lastrowid
+        layers = c.execute('SELECT * FROM layers WHERE layout_id=? ORDER BY z', (layout_id,)).fetchall()
+        for l in layers:
+            c.execute(
+                'INSERT INTO layers(layout_id,name,type,x,y,w,h,z,visible,locked,opacity,config) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                (new_id, l['name'], l['type'], l['x'], l['y'], l['w'], l['h'], l['z'], l['visible'], l['locked'], l['opacity'], l['config']),
+            )
+    return {'id': new_id}
 
 
 @router.patch('/api/layouts/{layout_id}')

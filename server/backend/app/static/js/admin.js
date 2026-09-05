@@ -49,8 +49,9 @@ function atCanvas() {
         { key: 'days', label: 'Days shown', type: 'select', options: [['3', '3'], ['5', '5'], ['7', '7']] },
       ],
       calendar: [
-        { key: 'days', label: 'Days ahead', type: 'select', options: [['7', '1 week'], ['14', '2 weeks'], ['30', '1 month']] },
-        { key: 'limit', label: 'Max events shown', type: 'select', options: [['8', '8'], ['12', '12'], ['20', '20']] },
+        { key: 'view', label: 'Style', type: 'select', options: [['agenda', 'Agenda list'], ['month', 'Month grid']] },
+        { key: 'days', label: 'Days ahead (agenda only)', type: 'select', options: [['7', '1 week'], ['14', '2 weeks'], ['30', '1 month']] },
+        { key: 'limit', label: 'Max events shown (agenda only)', type: 'select', options: [['8', '8'], ['12', '12'], ['20', '20']] },
       ],
       list: [
         { key: 'list_id', label: 'List', type: 'select', options: [] },

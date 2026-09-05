@@ -126,10 +126,38 @@ load();setInterval(load,10*60*1000);
 @widget('calendar')
 def render_calendar(layer, config):
     lid = layer['id']
+    view = config.get('view', 'agenda')
     days = int(config.get('days', 14) or 14)
     limit = int(config.get('limit', 12) or 12)
     content = f'<div id="cal-{lid}" style="width:100%;height:100%;overflow:hidden">Loading calendar…</div>'
-    script = f"""(()=>{{const root=document.getElementById('cal-{lid}');
+    if view == 'month':
+        script = f"""(()=>{{const root=document.getElementById('cal-{lid}');
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;'}}[c]));
+async function load(){{try{{
+const r=await fetch('/api/widget/calendar-events?days=35&limit=200');const j=await r.json();
+if(!r.ok)throw new Error(j.detail||'Calendar error');
+const now=new Date();const year=now.getFullYear(),month=now.getMonth();
+const firstOfMonth=new Date(year,month,1);const startOffset=(firstOfMonth.getDay()+6)%7;
+const daysInMonth=new Date(year,month+1,0).getDate();
+const byDay={{}};
+(j.events||[]).forEach(e=>{{
+const d=e.all_day?new Date(e.start+'T00:00:00'):new Date(e.start);
+if(d.getFullYear()===year&&d.getMonth()===month){{(byDay[d.getDate()]??=[]).push(e)}}
+}});
+const todayNum=now.getDate();
+let cells='';
+for(let i=0;i<startOffset;i++)cells+='<div></div>';
+for(let day=1;day<=daysInMonth;day++){{
+const evs=(byDay[day]||[]).slice(0,3);
+const isToday=day===todayNum;
+cells+=`<div style="background:rgba(255,255,255,${{isToday?'.12':'.04'}});border-radius:.25em;padding:.25em;min-height:0;${{isToday?'outline:1px solid rgba(255,255,255,.4)':''}}"><div style="font-size:.42em;font-weight:${{isToday?'800':'600'}};opacity:${{isToday?'1':'.7'}}">${{day}}</div>${{evs.map(e=>`<div style="font-size:.32em;background:${{e.color}};color:#0b0710;border-radius:.2em;padding:.05em .3em;margin-top:.15em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${{esc(e.summary)}}</div>`).join('')}}</div>`;
+}}
+root.innerHTML=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.2em;height:100%">${{cells}}</div>`;
+}}catch(e){{root.textContent=e.message}}}}
+load();setInterval(load,5*60*1000);
+}})();"""
+    else:
+        script = f"""(()=>{{const root=document.getElementById('cal-{lid}');
 const esc=s=>String(s??'').replace(/[&<>]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;'}}[c]));
 async function load(){{try{{
 const r=await fetch('/api/widget/calendar-events?days={days}&limit={limit}');const j=await r.json();

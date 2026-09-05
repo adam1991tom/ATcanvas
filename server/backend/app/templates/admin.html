@@ -171,6 +171,91 @@
       </div>
     </section>
 
+    <!-- People -->
+    <section class="page" :class="{active: page === 'people'}">
+      <div class="top">
+        <div><h1>People</h1><div class="muted">Family member profiles - color-code chores and see points at a glance.</div></div>
+        <button class="btn btn-primary" @click="promptCreatePerson()">+ Add person</button>
+      </div>
+      <div class="card">
+        <template x-if="!people.length"><div class="empty">No people added yet.</div></template>
+        <template x-for="p in people" :key="p.id">
+          <div class="row">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:14px;height:14px;border-radius:50%;display:inline-block" :style="`background:${p.color}`"></span>
+              <span x-text="(p.avatar ? p.avatar + ' ' : '') + p.name"></span>
+              <span class="muted" x-text="p.points + ' pts'"></span>
+            </div>
+            <button class="btn btn-danger" @click="deletePerson(p.id)">Remove</button>
+          </div>
+        </template>
+      </div>
+      <div class="section card">
+        <div class="top"><h2>Rewards</h2><button class="btn btn-secondary" @click="promptCreateReward()">+ Add reward</button></div>
+        <template x-if="!rewards.length"><div class="empty">No rewards yet.</div></template>
+        <template x-for="r in rewards" :key="r.id">
+          <div class="row">
+            <div><strong x-text="r.name"></strong><div class="muted" x-text="r.point_cost + ' points'"></div></div>
+            <div class="actions">
+              <button class="btn btn-secondary" @click="redeemReward(r)">Redeem</button>
+              <button class="btn btn-danger" @click="deleteReward(r.id)">Delete</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- Lists (chores / shopping / generic) -->
+    <section class="page" :class="{active: page === 'lists'}">
+      <div class="top">
+        <div><h1>Lists</h1><div class="muted">Chores, shopping, and anything else worth checking off.</div></div>
+        <button class="btn btn-primary" @click="promptCreateList()">+ New list</button>
+      </div>
+      <div class="designer">
+        <div class="card">
+          <div class="top">
+            <select @change="openList($event.target.value ? +$event.target.value : null)">
+              <option value="">Select list…</option>
+              <template x-for="l in lists" :key="l.id">
+                <option :value="l.id" :selected="l.id === currentList" x-text="`${l.name} (${l.type})`"></option>
+              </template>
+            </select>
+            <button class="btn btn-secondary" @click="promptAddItem()" x-show="currentList">+ Add item</button>
+          </div>
+          <template x-if="!currentList"><div class="empty">Select or create a list.</div></template>
+          <template x-if="currentList">
+            <div>
+              <template x-if="!listItems.length"><div class="empty">No items yet.</div></template>
+              <template x-for="it in listItems" :key="it.id">
+                <div class="row">
+                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                    <input type="checkbox" :checked="it.done" @change="toggleItem(it)" style="width:auto">
+                    <span :style="it.done ? 'opacity:.5;text-decoration:line-through' : ''" x-text="it.text"></span>
+                    <span class="muted" x-show="it.assignee_name" x-text="it.assignee_name"></span>
+                    <span class="muted" x-show="it.points" x-text="'+' + it.points + ' pts'"></span>
+                  </label>
+                  <button class="btn btn-danger" @click="deleteItem(it.id)">×</button>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div class="card">
+          <h2>Your lists</h2>
+          <template x-if="!lists.length"><div class="empty">No lists yet.</div></template>
+          <template x-for="l in lists" :key="l.id">
+            <div class="row">
+              <div><strong x-text="l.name"></strong><div class="muted" x-text="l.type"></div></div>
+              <div class="actions">
+                <button class="btn btn-secondary" @click="openList(l.id)">Open</button>
+                <button class="btn btn-danger" @click="deleteList(l.id)">Delete</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -190,6 +275,45 @@
       </template>
       <template x-if="modal.type === 'display'">
         <label>Display name<input x-model="modal.form.name" required placeholder="Kitchen"></label>
+      </template>
+      <template x-if="modal.type === 'person'">
+        <div class="modal-form">
+          <label>Name<input x-model="modal.form.name" required placeholder="Zeke"></label>
+          <label>Colour<input type="color" x-model="modal.form.color"></label>
+          <label>Avatar (emoji, optional)<input x-model="modal.form.avatar" placeholder="🧒"></label>
+        </div>
+      </template>
+      <template x-if="modal.type === 'reward'">
+        <div class="modal-form">
+          <label>Reward<input x-model="modal.form.name" required placeholder="Extra screen time"></label>
+          <label>Point cost<input type="number" x-model.number="modal.form.point_cost" min="0"></label>
+        </div>
+      </template>
+      <template x-if="modal.type === 'list-create'">
+        <div class="modal-form">
+          <label>Name<input x-model="modal.form.name" required placeholder="Kids' Chores"></label>
+          <label>Type<select x-model="modal.form.type">
+            <option value="chore">Chores (with points)</option>
+            <option value="shopping">Shopping list</option>
+            <option value="generic">Plain checklist</option>
+          </select></label>
+        </div>
+      </template>
+      <template x-if="modal.type === 'list-item'">
+        <div class="modal-form">
+          <label>Item<input x-model="modal.form.text" required placeholder="Take the bins out"></label>
+          <template x-if="modal.isChore">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <label>Assign to<select x-model="modal.form.assignee_id">
+                <option value="">Nobody</option>
+                <template x-for="p in people" :key="p.id">
+                  <option :value="p.id" x-text="p.name"></option>
+                </template>
+              </select></label>
+              <label>Points<input type="number" x-model.number="modal.form.points" min="0"></label>
+            </div>
+          </template>
+        </div>
       </template>
       <template x-if="modal.type === 'google-config'">
         <div class="modal-form">

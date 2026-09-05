@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from . import db as dbmod
 from . import auth
 from .deps import STATIC_DIR, APP_VERSION
-from .routes import admin, layouts, displays, weather, calendar
+from .routes import admin, layouts, displays, weather, calendar, people, lists
 
 # The slim Python base image's mimetypes database doesn't know .webp - without
 # this, StaticFiles serves it as text/plain and every browser refuses to render
@@ -25,6 +25,8 @@ app.include_router(layouts.router)
 app.include_router(displays.router)
 app.include_router(weather.router)
 app.include_router(calendar.router)
+app.include_router(people.router)
+app.include_router(lists.router)
 
 
 @app.on_event('startup')

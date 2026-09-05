@@ -44,6 +44,29 @@ def render_text(layer, config):
     return content, ''
 
 
+@widget('list')
+def render_list(layer, config):
+    lid = layer['id']
+    content = f'<div id="list-{lid}" style="width:100%;height:100%;overflow:auto">Loading…</div>'
+    script = f"""(()=>{{const root=document.getElementById('list-{lid}');
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;'}}[c]));
+async function load(){{try{{
+const r=await fetch('/api/widget/list/{lid}');const j=await r.json();
+if(!r.ok)throw new Error(j.detail||'List error');
+const isChore=j.list_type==='chore';
+if(!j.items.length){{root.innerHTML=`<div style="font-weight:800;margin-bottom:.4em">${{esc(j.title)}}</div><div style="opacity:.6">Nothing here</div>`;return}}
+root.innerHTML=`<div style="font-weight:800;margin-bottom:.5em">${{esc(j.title)}}</div>`+j.items.map(it=>`
+<label style="display:flex;align-items:center;gap:.5em;padding:.3em 0;${{it.done?'opacity:.45;text-decoration:line-through':''}}">
+<input type="checkbox" data-item="${{it.id}}" ${{it.done?'checked':''}} style="width:1.1em;height:1.1em;flex:none">
+<span>${{esc(it.text)}}${{isChore&&it.assignee_name?` <span style="opacity:.7;font-size:.8em;color:${{it.assignee_color||'#6aa7ff'}}">&middot; ${{esc(it.assignee_name)}}</span>`:''}}${{isChore&&it.points?` <span style="opacity:.6;font-size:.75em">(+${{it.points}})</span>`:''}}</span>
+</label>`).join('');
+root.querySelectorAll('[data-item]').forEach(cb=>cb.onchange=async()=>{{await fetch('/api/list-items/'+cb.dataset.item+'/toggle',{{method:'POST'}});load()}});
+}}catch(e){{root.textContent=e.message}}}}
+load();setInterval(load,30000);
+}})();"""
+    return content, script
+
+
 @widget('calendar')
 def render_calendar(layer, config):
     lid = layer['id']

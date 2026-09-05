@@ -46,6 +46,46 @@ CREATE TABLE IF NOT EXISTS displays(
     test_mode INTEGER DEFAULT 1,
     created_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS people(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#6aa7ff',
+    avatar TEXT DEFAULT '',
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS lists(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL DEFAULT 'generic',
+    name TEXT NOT NULL,
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS list_items(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    list_id INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    done INTEGER DEFAULT 0,
+    assignee_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+    points INTEGER DEFAULT 0,
+    position INTEGER DEFAULT 0,
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS rewards(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    point_cost INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS redemptions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+    reward_id INTEGER NOT NULL REFERENCES rewards(id) ON DELETE CASCADE,
+    redeemed_at INTEGER
+);
 """
 
 

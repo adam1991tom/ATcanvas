@@ -24,6 +24,10 @@ router = APIRouter()
 # a calendar). Everything under these prefixes stays reachable without a session.
 PUBLIC_PREFIXES = ('/display/', '/api/widget/', '/static/')
 PUBLIC_EXACT = {'/login', '/api/login', '/api/health'}
+# Ticking a chore/list item on the display itself is the one write a kiosk is
+# allowed to make - same trust model as a physical chore chart on the wall.
+# Narrower than a generic PATCH: this route can only flip `done`.
+PUBLIC_POST_PATTERNS = (re.compile(r'^/api/list-items/\d+/toggle$'),)
 
 _secret_cache = None
 
@@ -79,7 +83,8 @@ def is_public(path: str) -> bool:
 
 async def require_login(request: Request, call_next):
     path = request.url.path
-    if is_public(path) or path == '/api/login':
+    is_public_post = request.method == 'POST' and any(p.match(path) for p in PUBLIC_POST_PATTERNS)
+    if is_public(path) or path == '/api/login' or is_public_post:
         response = await call_next(request)
     elif not _verify_session(request.cookies.get(SESSION_COOKIE, '')):
         if path.startswith('/api/'):

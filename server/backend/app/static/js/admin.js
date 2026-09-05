@@ -13,10 +13,12 @@ function atCanvas() {
       { id: 'dashboard', label: 'Dashboard' },
       { id: 'layouts', label: 'Layouts' },
       { id: 'displays', label: 'Displays' },
+      { id: 'people', label: 'People' },
+      { id: 'lists', label: 'Lists' },
       { id: 'settings', label: 'Settings' },
     ],
     page: 'dashboard',
-    widgetTypes: ['clock', 'text', 'weather', 'calendar'],
+    widgetTypes: ['clock', 'text', 'weather', 'calendar', 'list'],
     widgetFields: {
       clock: [
         { key: 'clock_format', label: 'Format', type: 'select', options: [['24', '24-hour'], ['12', '12-hour']] },
@@ -34,8 +36,18 @@ function atCanvas() {
         { key: 'days', label: 'Days ahead', type: 'select', options: [['7', '1 week'], ['14', '2 weeks'], ['30', '1 month']] },
         { key: 'limit', label: 'Max events shown', type: 'select', options: [['8', '8'], ['12', '12'], ['20', '20']] },
       ],
+      list: [
+        { key: 'list_id', label: 'List', type: 'select', options: [] },
+        { key: 'title', label: 'Title override', type: 'text', placeholder: 'Leave blank to use list name' },
+        { key: 'show_done', label: 'Show completed items', type: 'checkbox' },
+      ],
     },
     google: { configured: false, connected: false, calendars: [] },
+    people: [],
+    rewards: [],
+    lists: [],
+    currentList: null,
+    listItems: [],
     layouts: [],
     displays: [],
     currentLayout: null,
@@ -54,7 +66,7 @@ function atCanvas() {
         if (e.data === 'atcanvas-google-connected') this.loadGoogleStatus();
       });
       const hash = location.hash.replace('#', '');
-      if (['layouts', 'displays', 'settings'].includes(hash)) this.go(hash);
+      if (['layouts', 'displays', 'settings', 'people', 'lists'].includes(hash)) this.go(hash);
       this.$nextTick(() => {
         if (this.$refs.canvas) {
           // The canvas can still be zero-width on first paint (grid/aspect-ratio
@@ -70,6 +82,8 @@ function atCanvas() {
       this.page = page;
       location.hash = page === 'dashboard' ? '' : page;
       if (page === 'settings') this.loadGoogleStatus();
+      if (page === 'people') { this.loadPeople(); this.loadRewards(); }
+      if (page === 'lists') { this.loadLists(); this.loadPeople(); }
     },
 
     async loadGoogleStatus() {
@@ -187,13 +201,18 @@ function atCanvas() {
       await this.openLayout(this.currentLayout);
     },
 
-    editWidget(l) {
-      const fields = this.widgetFields[l.type];
+    async editWidget(l) {
+      let fields = this.widgetFields[l.type];
       if (!fields) return;
+      if (l.type === 'list') {
+        let lists = [];
+        try { lists = await api('/api/lists'); } catch (e) {}
+        fields = fields.map(f => f.key === 'list_id' ? { ...f, options: lists.map(x => [String(x.id), x.name]) } : f);
+      }
       let cfg = {};
       try { cfg = JSON.parse(l.config || '{}'); } catch (e) {}
       const form = {};
-      fields.forEach(f => { form[f.key] = f.key in cfg ? cfg[f.key] : (f.type === 'checkbox' ? false : (f.type === 'select' ? f.options[0][0] : '')); });
+      fields.forEach(f => { form[f.key] = f.key in cfg ? cfg[f.key] : (f.type === 'checkbox' ? false : (f.type === 'select' ? (f.options[0] ? f.options[0][0] : '') : '')); });
       this.modal = {
         open: true, title: `Edit ${l.type}`, type: 'widget-settings', fields, form,
         onSubmit: async () => {
@@ -288,6 +307,118 @@ function atCanvas() {
       }
     },
     openDisplayUrl(d) { window.open(d.url, '_blank'); },
+
+    // ---------- People / rewards ----------
+    async loadPeople() { this.people = await api('/api/people'); },
+    async loadRewards() { this.rewards = await api('/api/rewards'); },
+
+    promptCreatePerson() {
+      this.modal = {
+        open: true, title: 'Add person', type: 'person',
+        form: { name: '', color: '#6aa7ff', avatar: '' },
+        onSubmit: async () => {
+          try {
+            await api('/api/people', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadPeople();
+            this.showToast('Person added');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async deletePerson(id) {
+      if (!confirm('Remove this person?')) return;
+      await api(`/api/people/${id}`, { method: 'DELETE' });
+      await this.loadPeople();
+    },
+
+    promptCreateReward() {
+      this.modal = {
+        open: true, title: 'Add reward', type: 'reward',
+        form: { name: '', point_cost: 10 },
+        onSubmit: async () => {
+          try {
+            await api('/api/rewards', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadRewards();
+            this.showToast('Reward added');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async deleteReward(id) {
+      if (!confirm('Delete this reward?')) return;
+      await api(`/api/rewards/${id}`, { method: 'DELETE' });
+      await this.loadRewards();
+    },
+    async redeemReward(reward) {
+      const personId = prompt('Redeem for which person? Enter their name:');
+      if (!personId) return;
+      const person = this.people.find(p => p.name.toLowerCase() === personId.toLowerCase());
+      if (!person) { this.showToast('No person with that name', true); return; }
+      try {
+        await api(`/api/rewards/${reward.id}/redeem`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ person_id: person.id }) });
+        await this.loadPeople();
+        this.showToast(`Redeemed for ${person.name}`);
+      } catch (e) { this.showToast(e.message, true); }
+    },
+
+    // ---------- Lists (chores / shopping / generic) ----------
+    async loadLists() { this.lists = await api('/api/lists'); },
+
+    promptCreateList() {
+      this.modal = {
+        open: true, title: 'New list', type: 'list-create',
+        form: { name: '', type: 'chore' },
+        onSubmit: async () => {
+          try {
+            const j = await api('/api/lists', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadLists();
+            await this.openList(j.id);
+            this.showToast('List created');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async deleteList(id) {
+      if (!confirm('Delete this list and all its items?')) return;
+      await api(`/api/lists/${id}`, { method: 'DELETE' });
+      if (this.currentList === id) { this.currentList = null; this.listItems = []; }
+      await this.loadLists();
+    },
+    async openList(id) {
+      this.currentList = id;
+      this.listItems = id ? await api(`/api/lists/${id}/items`) : [];
+    },
+    currentListObj() { return this.lists.find(l => l.id === this.currentList); },
+
+    promptAddItem() {
+      const isChore = this.currentListObj()?.type === 'chore';
+      this.modal = {
+        open: true, title: 'Add item', type: 'list-item',
+        form: { text: '', assignee_id: '', points: 0 },
+        isChore,
+        onSubmit: async () => {
+          try {
+            const body = { text: this.modal.form.text, points: isChore ? +(this.modal.form.points || 0) : 0 };
+            if (isChore && this.modal.form.assignee_id) body.assignee_id = +this.modal.form.assignee_id;
+            await api(`/api/lists/${this.currentList}/items`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+            this.modal.open = false;
+            await this.openList(this.currentList);
+            this.showToast('Item added');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async toggleItem(item) {
+      await api(`/api/list-items/${item.id}/toggle`, { method: 'POST' });
+      await this.openList(this.currentList);
+    },
+    async deleteItem(id) {
+      await api(`/api/list-items/${id}`, { method: 'DELETE' });
+      await this.openList(this.currentList);
+    },
   };
 }
 

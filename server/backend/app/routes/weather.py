@@ -108,6 +108,7 @@ def weather_widget_data(layer_id: int):
         'humidity': cur.get('relative_humidity_2m'), 'wind': cur.get('wind_speed_10m'),
         'icon': _wx_icon(cur.get('weather_code'), bool(cur.get('is_day', 1))),
         'condition': _wx_text(cur.get('weather_code')),
+        'code': cur.get('weather_code'), 'is_day': cur.get('is_day', 1),
         'units': '°F' if fahrenheit else '°C',
         'days': days,
     }

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from .. import db as dbmod
 from .. import render as renderer
 from ..deps import templates
+from .schedules import active_block
 
 router = APIRouter()
 
@@ -20,6 +21,7 @@ class DisplayCreate(BaseModel):
 class DisplayPatch(BaseModel):
     name: str | None = None
     layout_id: int | None = None
+    schedule_id: int | None = None
     test_mode: bool | None = None
 
 
@@ -28,7 +30,10 @@ def list_displays(request: Request):
     base = str(request.base_url).rstrip('/')
     with dbmod.get_db() as c:
         rows = c.execute(
-            'SELECT d.*, l.name AS layout_name FROM displays d LEFT JOIN layouts l ON l.id=d.layout_id ORDER BY d.name'
+            """SELECT d.*, l.name AS layout_name, s.name AS schedule_name FROM displays d
+               LEFT JOIN layouts l ON l.id=d.layout_id
+               LEFT JOIN schedules s ON s.id=d.schedule_id
+               ORDER BY d.name"""
         ).fetchall()
     out = []
     for r in rows:
@@ -76,21 +81,54 @@ def _auto_reload(page: str, seconds: int) -> str:
     return page.replace('</body>', f'<script>setTimeout(()=>location.reload(),{seconds * 1000})</script></body>')
 
 
+_BLACK_PAGE = (
+    '<!doctype html><html><head><meta charset="utf-8">'
+    '<style>html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden;cursor:none}</style>'
+    '</head><body></body></html>'
+)
+
+
 @router.get('/display/{token}', response_class=HTMLResponse)
 def display_page(token: str):
     with dbmod.get_db() as c:
         d = c.execute('SELECT * FROM displays WHERE token=?', (token,)).fetchone()
         if not d:
             raise HTTPException(404, 'Display URL not found')
-        if d['test_mode'] or not d['layout_id']:
+
+        block = active_block(c, d['schedule_id']) if d['schedule_id'] else None
+        action = block['action'] if block else None
+
+        if action == 'screen_off':
+            return _auto_reload(_BLACK_PAGE, 60)
+
+        layout_id = d['layout_id']
+        if block and action == 'layout' and block['target']:
+            target = str(block['target']).strip()
+            hit = None
+            if target.isdigit():
+                hit = c.execute('SELECT id FROM layouts WHERE id=?', (int(target),)).fetchone()
+            if not hit:
+                hit = c.execute('SELECT id FROM layouts WHERE name=?', (target,)).fetchone()
+            if hit:
+                layout_id = hit['id']
+
+        if d['test_mode'] or not layout_id:
             page = templates.get_template('test_screen.html').render(name=d['name'])
             return _auto_reload(page, 15)
-        layout = c.execute('SELECT * FROM layouts WHERE id=?', (d['layout_id'],)).fetchone()
+        layout = c.execute('SELECT * FROM layouts WHERE id=?', (layout_id,)).fetchone()
         if not layout:
             page = templates.get_template('test_screen.html').render(name='LAYOUT NOT FOUND')
             return _auto_reload(page, 15)
         layers = c.execute('SELECT * FROM layers WHERE layout_id=? ORDER BY z', (layout['id'],)).fetchall()
+
     page = renderer.render_layout(layout, layers, templates)
+    if block and action == 'dim':
+        try:
+            level = max(5, min(95, int(block['target'] or 30)))
+        except (TypeError, ValueError):
+            level = 30
+        shade = 1 - (level / 100)
+        page = page.replace('</body>', f'<div style="position:fixed;inset:0;background:rgba(0,0,0,{shade:.2f});z-index:2147483647;pointer-events:none"></div></body>')
     return _auto_reload(page, 180)
 
 

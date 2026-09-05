@@ -124,6 +124,12 @@
                   <option :value="l.id" :selected="l.id === d.layout_id" x-text="l.name"></option>
                 </template>
               </select>
+              <select @change="assignDisplaySchedule(d, $event.target.value ? +$event.target.value : null)">
+                <option value="">No schedule</option>
+                <template x-for="s in schedules" :key="s.id">
+                  <option :value="s.id" :selected="s.id === d.schedule_id" x-text="s.name"></option>
+                </template>
+              </select>
               <button class="btn btn-secondary" @click="copyDisplayUrl(d)">Copy URL</button>
               <button class="btn btn-secondary" @click="openDisplayUrl(d)">Open</button>
               <button class="btn btn-danger" @click="deleteDisplay(d.id)">Delete</button>
@@ -256,6 +262,132 @@
       </div>
     </section>
 
+    <!-- Media / Photos -->
+    <section class="page" :class="{active: page === 'media'}">
+      <div class="top">
+        <div><h1>Media</h1><div class="muted">Photos and video for the photos widget's slideshow.</div></div>
+        <label class="btn btn-primary" style="cursor:pointer">+ Upload<input type="file" accept="image/*,video/mp4,video/webm" style="display:none" @change="uploadMedia($event.target)"></label>
+      </div>
+      <div class="card">
+        <template x-if="!media.length"><div class="empty">No media uploaded yet.</div></template>
+        <template x-for="m in media" :key="m.id">
+          <div class="row">
+            <div><strong x-text="m.name"></strong><div class="muted" x-text="Math.round(m.size/1024) + ' KB'"></div></div>
+            <button class="btn btn-danger" @click="deleteMedia(m.id)">Delete</button>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- Notes -->
+    <section class="page" :class="{active: page === 'notes'}">
+      <div class="top">
+        <div><h1>Notes</h1><div class="muted">A shared message board for the notes widget.</div></div>
+        <button class="btn btn-primary" @click="promptAddNote()">+ Add note</button>
+      </div>
+      <div class="card">
+        <template x-if="!notes.length"><div class="empty">No notes yet.</div></template>
+        <template x-for="n in notes" :key="n.id">
+          <div class="row">
+            <div><span x-text="n.text"></span><div class="muted" x-show="n.author" x-text="n.author"></div></div>
+            <button class="btn btn-danger" @click="deleteNote(n.id)">Delete</button>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- Meals -->
+    <section class="page" :class="{active: page === 'meals'}">
+      <div class="top"><div><h1>Meals</h1><div class="muted">This week's plan for the meals widget.</div></div></div>
+      <div class="card" style="overflow-x:auto">
+        <div style="display:grid;grid-template-columns:repeat(7,minmax(140px,1fr));gap:10px">
+          <template x-for="d in mealDays" :key="d.date">
+            <div>
+              <div class="muted" style="margin-bottom:6px" x-text="d.label"></div>
+              <template x-for="slot in ['breakfast','lunch','dinner']" :key="slot">
+                <input :placeholder="slot" :value="d.meals[slot] || ''" style="margin-bottom:6px"
+                       @change="setMeal(d.date, slot, $event.target.value)">
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- Events (seasonal effects) -->
+    <section class="page" :class="{active: page === 'events'}">
+      <div class="top">
+        <div><h1>Events</h1><div class="muted">Seasonal overlays - snow, halloween, confetti and more, active on their date range.</div></div>
+        <button class="btn btn-primary" @click="promptCreateEvent()">+ New event</button>
+      </div>
+      <div class="card">
+        <template x-if="!events.length"><div class="empty">No events yet.</div></template>
+        <template x-for="ev in events" :key="ev.id">
+          <div class="row">
+            <div><strong x-text="ev.name"></strong><div class="muted" x-text="(ev.start_date || 'No start') + ' → ' + (ev.end_date || 'No end')"></div></div>
+            <div class="actions">
+              <select @change="setEventEffect(ev, $event.target.value)">
+                <option value="none" :selected="ev.effect === 'none'">No effect</option>
+                <option value="snow" :selected="ev.effect === 'snow'">Snow</option>
+                <option value="rain" :selected="ev.effect === 'rain'">Rain</option>
+                <option value="halloween" :selected="ev.effect === 'halloween'">Halloween</option>
+                <option value="confetti" :selected="ev.effect === 'confetti'">Confetti</option>
+                <option value="hearts" :selected="ev.effect === 'hearts'">Hearts</option>
+                <option value="stars" :selected="ev.effect === 'stars'">Stars</option>
+              </select>
+              <button class="btn btn-danger" @click="deleteEvent(ev.id)">Delete</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- Schedules -->
+    <section class="page" :class="{active: page === 'schedules'}">
+      <div class="top">
+        <div><h1>Schedules</h1><div class="muted">Screen on/off, dimming, and layout switching by time of day.</div></div>
+        <button class="btn btn-primary" @click="promptCreateSchedule()">+ New schedule</button>
+      </div>
+      <div class="designer">
+        <div class="card">
+          <div class="top">
+            <select @change="openSchedule($event.target.value ? +$event.target.value : null)">
+              <option value="">Select schedule…</option>
+              <template x-for="s in schedules" :key="s.id">
+                <option :value="s.id" :selected="s.id === currentSchedule" x-text="s.name"></option>
+              </template>
+            </select>
+            <button class="btn btn-secondary" @click="promptAddBlock()" x-show="currentSchedule">+ Add block</button>
+          </div>
+          <template x-if="!currentSchedule"><div class="empty">Select or create a schedule.</div></template>
+          <template x-if="currentSchedule">
+            <div>
+              <template x-if="!scheduleBlocks.length"><div class="empty">No time blocks yet.</div></template>
+              <template x-for="b in scheduleBlocks" :key="b.id">
+                <div class="row">
+                  <div><strong x-text="`${b.start_time}–${b.end_time}`"></strong><div class="muted" x-text="b.action + (b.target ? ' (' + b.target + ')' : '')"></div></div>
+                  <button class="btn btn-danger" @click="deleteBlock(b.id)">×</button>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div class="card">
+          <h2>Your schedules</h2>
+          <template x-if="!schedules.length"><div class="empty">No schedules yet.</div></template>
+          <template x-for="s in schedules" :key="s.id">
+            <div class="row">
+              <strong x-text="s.name"></strong>
+              <div class="actions">
+                <button class="btn btn-secondary" @click="openSchedule(s.id)">Open</button>
+                <button class="btn btn-danger" @click="deleteSchedule(s.id)">Delete</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -313,6 +445,47 @@
               <label>Points<input type="number" x-model.number="modal.form.points" min="0"></label>
             </div>
           </template>
+        </div>
+      </template>
+      <template x-if="modal.type === 'note'">
+        <div class="modal-form">
+          <label>Note<textarea x-model="modal.form.text" required rows="3" placeholder="Bins go out Thursday night"></textarea></label>
+          <label>From (optional)<input x-model="modal.form.author" placeholder="Mum"></label>
+        </div>
+      </template>
+      <template x-if="modal.type === 'event'">
+        <div class="modal-form">
+          <label>Name<input x-model="modal.form.name" required placeholder="Halloween"></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label>Start<input type="date" x-model="modal.form.start_date"></label>
+            <label>End<input type="date" x-model="modal.form.end_date"></label>
+          </div>
+          <label>Effect<select x-model="modal.form.effect">
+            <option value="none">No effect</option>
+            <option value="snow">Snow</option>
+            <option value="rain">Rain</option>
+            <option value="halloween">Halloween</option>
+            <option value="confetti">Confetti</option>
+            <option value="hearts">Hearts</option>
+            <option value="stars">Stars</option>
+          </select></label>
+        </div>
+      </template>
+      <template x-if="modal.type === 'schedule'">
+        <label>Name<input x-model="modal.form.name" required placeholder="Weeknights"></label>
+      </template>
+      <template x-if="modal.type === 'schedule-block'">
+        <div class="modal-form">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label>Start time<input type="time" x-model="modal.form.start_time" required></label>
+            <label>End time<input type="time" x-model="modal.form.end_time" required></label>
+          </div>
+          <label>Action<select x-model="modal.form.action">
+            <option value="layout">Switch layout</option>
+            <option value="screen_off">Screen off</option>
+            <option value="dim">Dim</option>
+          </select></label>
+          <label>Target (layout name/ID, or dim % - not needed for screen off)<input x-model="modal.form.target"></label>
         </div>
       </template>
       <template x-if="modal.type === 'google-config'">

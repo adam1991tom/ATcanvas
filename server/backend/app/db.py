@@ -86,6 +86,54 @@ CREATE TABLE IF NOT EXISTS redemptions(
     reward_id INTEGER NOT NULL REFERENCES rewards(id) ON DELETE CASCADE,
     redeemed_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS media(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    mime TEXT,
+    size INTEGER,
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS notes(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,
+    author TEXT DEFAULT '',
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS meal_plan(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    slot TEXT NOT NULL DEFAULT 'dinner',
+    text TEXT NOT NULL DEFAULT '',
+    UNIQUE(date, slot)
+);
+
+CREATE TABLE IF NOT EXISTS events(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    start_date TEXT,
+    end_date TEXT,
+    effect TEXT NOT NULL DEFAULT 'none',
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS schedules(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS schedule_blocks(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    schedule_id INTEGER NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    action TEXT NOT NULL DEFAULT 'layout',
+    target TEXT DEFAULT ''
+);
 """
 
 
@@ -97,10 +145,17 @@ def get_db():
     return conn
 
 
+def _migrate(conn):
+    cols = {r['name'] for r in conn.execute('PRAGMA table_info(displays)').fetchall()}
+    if 'schedule_id' not in cols:
+        conn.execute('ALTER TABLE displays ADD COLUMN schedule_id INTEGER REFERENCES schedules(id) ON DELETE SET NULL')
+
+
 def init_db():
     conn = get_db()
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()

@@ -15,10 +15,15 @@ function atCanvas() {
       { id: 'displays', label: 'Displays' },
       { id: 'people', label: 'People' },
       { id: 'lists', label: 'Lists' },
+      { id: 'media', label: 'Media' },
+      { id: 'notes', label: 'Notes' },
+      { id: 'meals', label: 'Meals' },
+      { id: 'events', label: 'Events' },
+      { id: 'schedules', label: 'Schedules' },
       { id: 'settings', label: 'Settings' },
     ],
     page: 'dashboard',
-    widgetTypes: ['clock', 'text', 'weather', 'calendar', 'list'],
+    widgetTypes: ['clock', 'text', 'weather', 'calendar', 'list', 'photos', 'notes', 'meals'],
     widgetFields: {
       clock: [
         { key: 'clock_format', label: 'Format', type: 'select', options: [['24', '24-hour'], ['12', '12-hour']] },
@@ -31,6 +36,17 @@ function atCanvas() {
       weather: [
         { key: 'location', label: 'Location', type: 'text', placeholder: 'London, UK' },
         { key: 'units', label: 'Units', type: 'select', options: [['c', 'Celsius'], ['f', 'Fahrenheit']] },
+        { key: 'fullscreen_effect', label: 'Fullscreen weather animation (rain/snow/etc across the whole display)', type: 'checkbox' },
+      ],
+      photos: [
+        { key: 'seconds', label: 'Seconds per photo', type: 'select', options: [['5', '5'], ['10', '10'], ['20', '20'], ['30', '30']] },
+        { key: 'fit', label: 'Fit', type: 'select', options: [['cover', 'Fill (crop)'], ['contain', 'Fit (letterbox)']] },
+      ],
+      notes: [
+        { key: 'limit', label: 'Max notes shown', type: 'select', options: [['3', '3'], ['5', '5'], ['10', '10']] },
+      ],
+      meals: [
+        { key: 'days', label: 'Days shown', type: 'select', options: [['3', '3'], ['5', '5'], ['7', '7']] },
       ],
       calendar: [
         { key: 'days', label: 'Days ahead', type: 'select', options: [['7', '1 week'], ['14', '2 weeks'], ['30', '1 month']] },
@@ -48,6 +64,13 @@ function atCanvas() {
     lists: [],
     currentList: null,
     listItems: [],
+    media: [],
+    notes: [],
+    mealDays: [],
+    events: [],
+    schedules: [],
+    currentSchedule: null,
+    scheduleBlocks: [],
     layouts: [],
     displays: [],
     currentLayout: null,
@@ -66,7 +89,7 @@ function atCanvas() {
         if (e.data === 'atcanvas-google-connected') this.loadGoogleStatus();
       });
       const hash = location.hash.replace('#', '');
-      if (['layouts', 'displays', 'settings', 'people', 'lists'].includes(hash)) this.go(hash);
+      if (['layouts', 'displays', 'settings', 'people', 'lists', 'media', 'notes', 'meals', 'events', 'schedules'].includes(hash)) this.go(hash);
       this.$nextTick(() => {
         if (this.$refs.canvas) {
           // The canvas can still be zero-width on first paint (grid/aspect-ratio
@@ -84,6 +107,11 @@ function atCanvas() {
       if (page === 'settings') this.loadGoogleStatus();
       if (page === 'people') { this.loadPeople(); this.loadRewards(); }
       if (page === 'lists') { this.loadLists(); this.loadPeople(); }
+      if (page === 'media') this.loadMedia();
+      if (page === 'notes') this.loadNotes();
+      if (page === 'meals') this.loadMealWeek();
+      if (page === 'events') this.loadEvents();
+      if (page === 'schedules') this.loadSchedules();
     },
 
     async loadGoogleStatus() {
@@ -141,7 +169,10 @@ function atCanvas() {
     },
 
     async loadLayouts() { this.layouts = await api('/api/layouts'); },
-    async loadDisplays() { this.displays = await api('/api/displays'); },
+    async loadDisplays() {
+      this.displays = await api('/api/displays');
+      if (!this.schedules.length) this.schedules = await api('/api/schedules').catch(() => []);
+    },
 
     currentLayoutName() {
       const l = this.layouts.find(x => x.id === this.currentLayout);
@@ -418,6 +449,141 @@ function atCanvas() {
     async deleteItem(id) {
       await api(`/api/list-items/${id}`, { method: 'DELETE' });
       await this.openList(this.currentList);
+    },
+
+    // ---------- Media / photos ----------
+    async loadMedia() { this.media = await api('/api/media'); },
+    async uploadMedia(fileInput) {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        await api('/api/media', { method: 'POST', body: fd });
+        fileInput.value = '';
+        await this.loadMedia();
+        this.showToast('Uploaded');
+      } catch (e) { this.showToast(e.message, true); }
+    },
+    async deleteMedia(id) {
+      if (!confirm('Delete this file?')) return;
+      await api(`/api/media/${id}`, { method: 'DELETE' });
+      await this.loadMedia();
+    },
+
+    // ---------- Notes ----------
+    async loadNotes() { this.notes = await api('/api/notes'); },
+    promptAddNote() {
+      this.modal = {
+        open: true, title: 'Add note', type: 'note',
+        form: { text: '', author: '' },
+        onSubmit: async () => {
+          try {
+            await api('/api/notes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadNotes();
+            this.showToast('Note added');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async deleteNote(id) {
+      await api(`/api/notes/${id}`, { method: 'DELETE' });
+      await this.loadNotes();
+    },
+
+    // ---------- Meals ----------
+    async loadMealWeek() {
+      const j = await api('/api/meals?days=7');
+      const byDate = {};
+      j.forEach(m => { (byDate[m.date] ??= {})[m.slot] = m.text; });
+      const days = [];
+      const start = new Date();
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start); d.setDate(start.getDate() + i);
+        const iso = d.toISOString().slice(0, 10);
+        days.push({ date: iso, label: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }), meals: byDate[iso] || {} });
+      }
+      this.mealDays = days;
+    },
+    async setMeal(date, slot, text) {
+      await api('/api/meals', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date, slot, text }) });
+      await this.loadMealWeek();
+    },
+
+    // ---------- Events (seasonal effects) ----------
+    async loadEvents() { this.events = await api('/api/events'); },
+    promptCreateEvent() {
+      this.modal = {
+        open: true, title: 'New event', type: 'event',
+        form: { name: '', start_date: '', end_date: '', effect: 'none' },
+        onSubmit: async () => {
+          try {
+            await api('/api/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadEvents();
+            this.showToast('Event created');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async setEventEffect(ev, effect) {
+      await api(`/api/events/${ev.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ effect }) });
+      await this.loadEvents();
+    },
+    async deleteEvent(id) {
+      await api(`/api/events/${id}`, { method: 'DELETE' });
+      await this.loadEvents();
+    },
+
+    // ---------- Schedules ----------
+    async loadSchedules() { this.schedules = await api('/api/schedules'); },
+    promptCreateSchedule() {
+      this.modal = {
+        open: true, title: 'New schedule', type: 'schedule',
+        form: { name: '' },
+        onSubmit: async () => {
+          try {
+            const j = await api('/api/schedules', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.loadSchedules();
+            await this.openSchedule(j.id);
+            this.showToast('Schedule created');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async deleteSchedule(id) {
+      if (!confirm('Delete this schedule?')) return;
+      await api(`/api/schedules/${id}`, { method: 'DELETE' });
+      if (this.currentSchedule === id) { this.currentSchedule = null; this.scheduleBlocks = []; }
+      await this.loadSchedules();
+    },
+    async openSchedule(id) {
+      this.currentSchedule = id;
+      this.scheduleBlocks = id ? await api(`/api/schedules/${id}/blocks`) : [];
+    },
+    promptAddBlock() {
+      this.modal = {
+        open: true, title: 'Add time block', type: 'schedule-block',
+        form: { start_time: '22:00', end_time: '06:00', action: 'screen_off', target: '' },
+        onSubmit: async () => {
+          try {
+            await api(`/api/schedules/${this.currentSchedule}/blocks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(this.modal.form) });
+            this.modal.open = false;
+            await this.openSchedule(this.currentSchedule);
+            this.showToast('Block added');
+          } catch (e) { this.showToast(e.message, true); }
+        },
+      };
+    },
+    async deleteBlock(id) {
+      await api(`/api/schedule-blocks/${id}`, { method: 'DELETE' });
+      await this.openSchedule(this.currentSchedule);
+    },
+    async assignDisplaySchedule(d, scheduleId) {
+      await api(`/api/displays/${d.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ schedule_id: scheduleId }) });
+      await this.loadDisplays();
     },
   };
 }

@@ -7,24 +7,36 @@
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:Inter,system-ui,sans-serif;cursor:none}
-#at-stage{position:absolute;top:50%;left:50%;width:{{ layout['width'] }}px;height:{{ layout['height'] }}px;background:{{ layout['background'] }};transform-origin:center center;overflow:hidden}
+#at-viewport{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#at-stage{width:{{ layout['width'] }}px;height:{{ layout['height'] }}px;background:{{ layout['background'] }};transform-origin:center center;overflow:hidden;flex:none}
 .layer{position:absolute;overflow:hidden}
 </style>
 </head>
 <body>
-<div id="at-stage">
+<div id="at-viewport"><div id="at-stage">
 {{ widgets_html | safe }}
-</div>
+</div></div>
 <script>
 (function(){
+  // The physical mount can be portrait or the screen can be turned upside down, but the
+  // widgets themselves (text, photos, etc.) should never render sideways - only the frame's
+  // shape/orientation changes. So 90/270 (portrait) never rotate the content: they just fit
+  // the normal upright layout into a taller-than-wide viewport, anchored to the bottom edge
+  // (screen real estate near the top of a tall portrait mount is the least useful, so any
+  // leftover letterboxing space goes there instead of splitting it above and below). 180
+  // (screen physically mounted upside down) is the only case that genuinely needs the pixels
+  // flipped, since that doesn't change the viewport's aspect ratio at all.
   var ORIENTATION = {{ orientation }};
   var W = {{ layout['width'] }}, H = {{ layout['height'] }};
+  var viewport = document.getElementById('at-viewport');
   var stage = document.getElementById('at-stage');
+  var portrait = ORIENTATION === 90 || ORIENTATION === 270;
+  var upsideDown = ORIENTATION === 180;
+  viewport.style.alignItems = portrait ? 'flex-end' : 'center';
+  stage.style.transformOrigin = portrait ? 'bottom center' : 'center center';
   function fit(){
-    var rotated = ORIENTATION === 90 || ORIENTATION === 270;
-    var boxW = rotated ? H : W, boxH = rotated ? W : H;
-    var scale = Math.min(innerWidth / boxW, innerHeight / boxH);
-    stage.style.transform = 'translate(-50%,-50%) rotate(' + ORIENTATION + 'deg) scale(' + scale + ')';
+    var scale = Math.min(innerWidth / W, innerHeight / H);
+    stage.style.transform = (upsideDown ? 'rotate(180deg) ' : '') + 'scale(' + scale + ')';
   }
   fit();
   addEventListener('resize', fit);

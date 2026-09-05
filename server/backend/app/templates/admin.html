@@ -131,11 +131,10 @@
                   <option :value="s.id" :selected="s.id === d.schedule_id" x-text="s.name"></option>
                 </template>
               </select>
-              <select @change="setOrientation(d, $event.target.value)" title="Screen orientation">
-                <option value="0" :selected="d.orientation === '0'">Landscape (0°)</option>
-                <option value="90" :selected="d.orientation === '90'">Portrait (90°)</option>
-                <option value="180" :selected="d.orientation === '180'">Upside down (180°)</option>
-                <option value="270" :selected="d.orientation === '270'">Portrait (270°)</option>
+              <select @change="setOrientation(d, $event.target.value)" title="Screen orientation - content always stays upright, this just changes the frame's shape/flip to match how the screen is physically mounted">
+                <option value="0" :selected="d.orientation === '0'">Landscape</option>
+                <option value="90" :selected="d.orientation === '90' || d.orientation === '270'">Portrait</option>
+                <option value="180" :selected="d.orientation === '180'">Landscape, upside down</option>
               </select>
               <button class="btn btn-secondary" @click="setOverride(d, 'off')">Screen Off</button>
               <button class="btn btn-secondary" @click="setOverride(d, 'dim')">Dim</button>

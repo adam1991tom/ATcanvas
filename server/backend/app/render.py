@@ -325,9 +325,15 @@ FX_SCRIPT_TEMPLATE = '''<script>
 </script>'''
 
 
-def render_layout(layout, layers, templates):
+def render_layout(layout, layers, templates, orientation=0):
     widgets_html = ''.join(render_layer_html(l) for l in layers)
     effect_layer = next((l for l in layers if l['type'] == 'weather' and layer_config(l).get('fullscreen_effect')), None)
     fx_script = FX_SCRIPT_TEMPLATE % {'layer_id': (effect_layer['id'] if effect_layer else 'null')}
     widgets_html += fx_script
-    return templates.get_template('display_page.html').render(layout=layout, widgets_html=widgets_html)
+    try:
+        orientation = int(orientation) % 360
+    except (TypeError, ValueError):
+        orientation = 0
+    if orientation not in (0, 90, 180, 270):
+        orientation = 0
+    return templates.get_template('display_page.html').render(layout=layout, widgets_html=widgets_html, orientation=orientation)

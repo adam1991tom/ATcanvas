@@ -6,11 +6,29 @@
 <title>AT Canvas Display</title>
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:{{ layout['background'] }};font-family:Inter,system-ui,sans-serif;cursor:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:Inter,system-ui,sans-serif;cursor:none}
+#at-stage{position:absolute;top:50%;left:50%;width:{{ layout['width'] }}px;height:{{ layout['height'] }}px;background:{{ layout['background'] }};transform-origin:center center;overflow:hidden}
 .layer{position:absolute;overflow:hidden}
 </style>
 </head>
 <body>
+<div id="at-stage">
 {{ widgets_html | safe }}
+</div>
+<script>
+(function(){
+  var ORIENTATION = {{ orientation }};
+  var W = {{ layout['width'] }}, H = {{ layout['height'] }};
+  var stage = document.getElementById('at-stage');
+  function fit(){
+    var rotated = ORIENTATION === 90 || ORIENTATION === 270;
+    var boxW = rotated ? H : W, boxH = rotated ? W : H;
+    var scale = Math.min(innerWidth / boxW, innerHeight / boxH);
+    stage.style.transform = 'translate(-50%,-50%) rotate(' + ORIENTATION + 'deg) scale(' + scale + ')';
+  }
+  fit();
+  addEventListener('resize', fit);
+})();
+</script>
 </body>
 </html>

@@ -149,6 +149,17 @@ def _migrate(conn):
     cols = {r['name'] for r in conn.execute('PRAGMA table_info(displays)').fetchall()}
     if 'schedule_id' not in cols:
         conn.execute('ALTER TABLE displays ADD COLUMN schedule_id INTEGER REFERENCES schedules(id) ON DELETE SET NULL')
+    if 'orientation' not in cols:
+        # Degrees clockwise the rendered layout is rotated before being scaled to
+        # fit the physical screen - lets a 1920x1080-authored layout fill a
+        # portrait-mounted screen (90/270) or run upside down (180) without
+        # redesigning it.
+        conn.execute("ALTER TABLE displays ADD COLUMN orientation TEXT NOT NULL DEFAULT '0'")
+    if 'override_action' not in cols:
+        # Manual on/off/dim control independent of time-based schedules - NULL
+        # means "defer to the schedule (if any), otherwise show the layout".
+        conn.execute('ALTER TABLE displays ADD COLUMN override_action TEXT')
+        conn.execute("ALTER TABLE displays ADD COLUMN override_target TEXT DEFAULT ''")
 
 
 def init_db():

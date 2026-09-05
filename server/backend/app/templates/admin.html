@@ -114,6 +114,7 @@
           <div class="row">
             <div>
               <strong x-text="d.name"></strong>
+              <span class="badge" x-show="d.override_action" x-text="'Manually: ' + d.override_action" style="margin-left:8px;font-size:11px"></span>
               <div class="muted" x-text="d.layout_name ? ('Layout: ' + d.layout_name) : 'No layout assigned (test screen)'"></div>
               <div class="muted" x-text="d.url"></div>
             </div>
@@ -130,6 +131,15 @@
                   <option :value="s.id" :selected="s.id === d.schedule_id" x-text="s.name"></option>
                 </template>
               </select>
+              <select @change="setOrientation(d, $event.target.value)" title="Screen orientation">
+                <option value="0" :selected="d.orientation === '0'">Landscape (0°)</option>
+                <option value="90" :selected="d.orientation === '90'">Portrait (90°)</option>
+                <option value="180" :selected="d.orientation === '180'">Upside down (180°)</option>
+                <option value="270" :selected="d.orientation === '270'">Portrait (270°)</option>
+              </select>
+              <button class="btn btn-secondary" @click="setOverride(d, 'off')">Screen Off</button>
+              <button class="btn btn-secondary" @click="setOverride(d, 'dim')">Dim</button>
+              <button class="btn btn-secondary" @click="setOverride(d, null)" x-show="d.override_action">Clear Override</button>
               <button class="btn btn-secondary" @click="copyDisplayUrl(d)">Copy URL</button>
               <button class="btn btn-secondary" @click="openDisplayUrl(d)">Open</button>
               <button class="btn btn-danger" @click="deleteDisplay(d.id)">Delete</button>

@@ -586,6 +586,15 @@ function atCanvas() {
       await api(`/api/displays/${d.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ schedule_id: scheduleId }) });
       await this.loadDisplays();
     },
+    async setOrientation(d, orientation) {
+      await api(`/api/displays/${d.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orientation }) });
+      await this.loadDisplays();
+    },
+    async setOverride(d, action) {
+      await api(`/api/displays/${d.id}/override`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+      await this.loadDisplays();
+      this.showToast(action ? `Set to ${action}` : 'Override cleared');
+    },
   };
 }
 

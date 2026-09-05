@@ -23,6 +23,12 @@ class DisplayPatch(BaseModel):
     layout_id: int | None = None
     schedule_id: int | None = None
     test_mode: bool | None = None
+    orientation: str | None = None
+
+
+class OverrideBody(BaseModel):
+    action: str | None = None  # 'off' | 'on' | 'dim' | None (clear)
+    target: str = ''
 
 
 @router.get('/api/displays')
@@ -63,6 +69,8 @@ def patch_display(display_id: int, body: DisplayPatch):
         return {'updated': False}
     if 'test_mode' in vals:
         vals['test_mode'] = int(bool(vals['test_mode']))
+    if 'orientation' in vals and vals['orientation'] not in ('0', '90', '180', '270'):
+        raise HTTPException(400, "orientation must be one of '0', '90', '180', '270'")
     with dbmod.get_db() as c:
         cur = c.execute('UPDATE displays SET ' + ','.join(f'{k}=?' for k in vals) + ' WHERE id=?', (*vals.values(), display_id))
         if cur.rowcount == 0:
@@ -77,6 +85,19 @@ def delete_display(display_id: int):
     return {'deleted': True}
 
 
+@router.post('/api/displays/{display_id}/override')
+def set_override(display_id: int, body: OverrideBody):
+    """Manual on/off/dim control, independent of - and taking priority over -
+    any time-based schedule. `action=None` clears the override and hands control
+    back to the schedule (or plain layout rendering if there's no schedule)."""
+    action = body.action if body.action in ('off', 'on', 'dim') else None
+    with dbmod.get_db() as c:
+        cur = c.execute('UPDATE displays SET override_action=?, override_target=? WHERE id=?', (action, body.target, display_id))
+        if cur.rowcount == 0:
+            raise HTTPException(404, 'Display not found')
+    return {'override_action': action}
+
+
 def _auto_reload(page: str, seconds: int) -> str:
     return page.replace('</body>', f'<script>setTimeout(()=>location.reload(),{seconds * 1000})</script></body>')
 
@@ -88,6 +109,15 @@ _BLACK_PAGE = (
 )
 
 
+def _dim_overlay(page: str, target) -> str:
+    try:
+        level = max(5, min(95, int(target or 30)))
+    except (TypeError, ValueError):
+        level = 30
+    shade = 1 - (level / 100)
+    return page.replace('</body>', f'<div style="position:fixed;inset:0;background:rgba(0,0,0,{shade:.2f});z-index:2147483647;pointer-events:none"></div></body>')
+
+
 @router.get('/display/{token}', response_class=HTMLResponse)
 def display_page(token: str):
     with dbmod.get_db() as c:
@@ -95,7 +125,13 @@ def display_page(token: str):
         if not d:
             raise HTTPException(404, 'Display URL not found')
 
-        block = active_block(c, d['schedule_id']) if d['schedule_id'] else None
+        # A manual override (set from the admin Displays page) always wins over
+        # the time-based schedule - that's the point of a manual override.
+        override = d['override_action']
+        if override == 'off':
+            return _auto_reload(_BLACK_PAGE, 60)
+
+        block = None if override == 'on' else (active_block(c, d['schedule_id']) if d['schedule_id'] else None)
         action = block['action'] if block else None
 
         if action == 'screen_off':
@@ -114,21 +150,23 @@ def display_page(token: str):
 
         if d['test_mode'] or not layout_id:
             page = templates.get_template('test_screen.html').render(name=d['name'])
+            if override == 'dim':
+                page = _dim_overlay(page, d['override_target'])
+            elif block and action == 'dim':
+                page = _dim_overlay(page, block['target'])
             return _auto_reload(page, 15)
         layout = c.execute('SELECT * FROM layouts WHERE id=?', (layout_id,)).fetchone()
         if not layout:
             page = templates.get_template('test_screen.html').render(name='LAYOUT NOT FOUND')
             return _auto_reload(page, 15)
         layers = c.execute('SELECT * FROM layers WHERE layout_id=? ORDER BY z', (layout['id'],)).fetchall()
+        orientation = d['orientation']
 
-    page = renderer.render_layout(layout, layers, templates)
-    if block and action == 'dim':
-        try:
-            level = max(5, min(95, int(block['target'] or 30)))
-        except (TypeError, ValueError):
-            level = 30
-        shade = 1 - (level / 100)
-        page = page.replace('</body>', f'<div style="position:fixed;inset:0;background:rgba(0,0,0,{shade:.2f});z-index:2147483647;pointer-events:none"></div></body>')
+    page = renderer.render_layout(layout, layers, templates, orientation=orientation)
+    if override == 'dim':
+        page = _dim_overlay(page, d['override_target'])
+    elif block and action == 'dim':
+        page = _dim_overlay(page, block['target'])
     return _auto_reload(page, 180)
 
 
